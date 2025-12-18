@@ -168,8 +168,11 @@ class IgdbClient:
         self._token = payload["access_token"]
         self._token_expiry = time.time() + int(payload.get("expires_in", 3600)) - 60
 
-    def search_games(self, title: str, limit: int = 5) -> list[Dict]:
-        query_title = strip_keywords(title).replace('"', " ")
+    def search_games(
+        self, title: str, limit: int = 5, strip_input: bool = True
+    ) -> list[Dict]:
+        query_value = strip_keywords(title) if strip_input else title
+        query_title = query_value.replace('"', " ")
         query = (
             f'search "{query_title}";'
             " fields name,summary,platforms.name,platforms.abbreviation,"
@@ -184,7 +187,25 @@ class IgdbClient:
             headers=self._auth_headers(),
         )
         response.raise_for_status()
-        return response.json()
+        results = response.json()
+        logger.debug("IGDB search for '%s' returned %s results", title, len(results))
+        return results
+
+    def get_game_by_id(self, record_id: int) -> Optional[Dict]:
+        query = (
+            f"where id = {record_id};"
+            " fields name,summary,platforms.name,platforms.abbreviation,"
+            "cover.image_id,artworks.image_id,screenshots.image_id,videos.video_id,"
+            "total_rating;"
+        )
+        response = self._http.post(
+            f"{self.API_BASE}/games",
+            data=query,
+            headers=self._auth_headers(),
+        )
+        response.raise_for_status()
+        results = response.json()
+        return results[0] if results else None
 
 
 class IgdbMetadataProvider:
@@ -192,15 +213,34 @@ class IgdbMetadataProvider:
         self.client = IgdbClient(client_id, client_secret)
 
     def build_game(
-        self, title: str, platform: Optional[str] = None, source: Optional[str] = None
+        self,
+        title: str,
+        platform: Optional[str] = None,
+        source: Optional[str] = None,
+        record_id: Optional[int] = None,
     ) -> Game:
+        if record_id is not None:
+            record = self.client.get_game_by_id(record_id)
+            if record:
+                return self._build_from_record(record, title, platform, source)
+
         records = self.client.search_games(title)
         record = self._select_record(records, title)
         if not record:
             raise MetadataLookupError(f"No IGDB match for '{title}'")
 
-        thumbnail_url, cover_url = self._image_urls(record, title)
-        gallery_urls = self._gallery_urls(record, title)
+        return self._build_from_record(record, title, platform, source)
+
+    def build_game_from_record(
+        self, record: Dict, fallback_title: str, platform: Optional[str], source: Optional[str]
+    ) -> Game:
+        return self._build_from_record(record, fallback_title, platform, source)
+
+    def _build_from_record(
+        self, record: Dict, fallback_title: str, platform: Optional[str], source: Optional[str]
+    ) -> Game:
+        thumbnail_url, cover_url = self._image_urls(record, fallback_title)
+        gallery_urls = self._gallery_urls(record, fallback_title)
         trailer_url = self._trailer_url(record)
         description = record.get("summary") or DEFAULT_DESCRIPTION
         resolved_platform = platform or self._platform_name(record)
@@ -210,7 +250,7 @@ class IgdbMetadataProvider:
             rating_value = round(rating_value, 1)
 
         return Game(
-            title=record.get("name") or title,
+            title=record.get("name") or fallback_title,
             platform=resolved_platform,
             source=resolved_source,
             description=description,
@@ -309,29 +349,44 @@ class MetadataProvider:
             )
 
     def build_game(
-        self, title: str, platform: Optional[str] = None, source: Optional[str] = None
+        self,
+        title: str,
+        platform: Optional[str] = None,
+        source: Optional[str] = None,
+        record_id: Optional[int] = None,
     ) -> Game:
         if self.primary_provider:
             try:
-                return self.primary_provider.build_game(title, platform, source)
+                return self.primary_provider.build_game(
+                    title, platform, source, record_id=record_id
+                )
             except Exception as exc:  # pragma: no cover - best-effort logging
                 logger.warning("Falling back to placeholder metadata: %s", exc)
 
         return self.offline_provider.build_game(title, platform, source)
 
     def search_top_games(
-        self, title: str, platform: Optional[str] = None, source: Optional[str] = None
+        self,
+        title: str,
+        platform: Optional[str] = None,
+        source: Optional[str] = None,
+        limit: int = 10,
     ) -> list[Game]:
         if not self.primary_provider:
             return [self.offline_provider.build_game(title, platform, source)]
         try:
-            records = self.primary_provider.client.search_games(title, limit=5)
+            records = self.primary_provider.client.search_games(
+                title, limit=limit, strip_input=False
+            )
+            logger.debug(
+                "Search top games for '%s' yielded %s records", title, len(records)
+            )
             games = []
             for record in records:
                 try:
                     games.append(
-                        self.primary_provider.build_game(
-                            record.get("name") or title, platform, source
+                        self.primary_provider.build_game_from_record(
+                            record, title, platform, source
                         )
                     )
                 except Exception:
@@ -340,3 +395,33 @@ class MetadataProvider:
         except Exception as exc:
             logger.warning("Failed to fetch IGDB choices: %s", exc)
             return [self.offline_provider.build_game(title, platform, source)]
+
+    def search_suggestions(self, title: str, limit: int = 5) -> list[Dict[str, str]]:
+        if not self.primary_provider:
+            logger.debug("No IGDB provider configured; returning empty suggestions.")
+            return []
+        try:
+            records = self.primary_provider.client.search_games(
+                title, limit=limit, strip_input=False
+            )
+            suggestions: list[Dict[str, str]] = []
+            for record in records:
+                name = record.get("name")
+                if not name:
+                    continue
+                suggestions.append(
+                    {
+                        "title": name,
+                        "description": record.get("summary") or "",
+                        "record_id": record.get("id"),
+                    }
+                )
+            logger.debug(
+                "Suggestion search for '%s' produced %s candidates",
+                title,
+                len(suggestions),
+            )
+            return suggestions
+        except Exception as exc:
+            logger.warning("Failed to fetch suggestions: %s", exc)
+            return []

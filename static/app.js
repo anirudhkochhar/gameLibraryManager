@@ -295,19 +295,27 @@ const renderSearchResults = (matches = []) => {
   matches.forEach((match, index) => {
     const item = document.createElement("article");
     item.className = "search-result";
-    if (pendingRefineSelection && pendingRefineSelection.__id === match.__id) {
+    if (
+      pendingRefineSelection &&
+      pendingRefineSelection.__matchIndex === index
+    ) {
       item.classList.add("active");
     }
     const title = document.createElement("h4");
     title.textContent = match.title;
     const description = document.createElement("p");
-    description.textContent = match.description;
+    description.textContent =
+      match.description || "No summary available for this entry.";
     item.appendChild(title);
     item.appendChild(description);
     item.addEventListener("click", () => {
-      pendingRefineSelection = match;
+      pendingRefineSelection = { ...match, __matchIndex: index };
       elements.searchConfirmButton?.removeAttribute("disabled");
-      renderSearchResults(matches);
+      elements.searchResults
+        ?.querySelectorAll(".search-result")
+        ?.forEach((el, idx) => {
+          el.classList.toggle("active", idx === index);
+        });
     });
     fragment.appendChild(item);
   });
@@ -320,6 +328,7 @@ const fetchRefineMatches = async () => {
     showStatus("Enter a title to search.", "error");
     return;
   }
+  console.debug("Fetch matches clicked with query:", query);
   showStatus("Searching IGDB…");
   elements.searchConfirmButton?.setAttribute("disabled", "true");
   pendingRefineSelection = null;
@@ -331,10 +340,11 @@ const fetchRefineMatches = async () => {
       body: JSON.stringify({ title: query }),
     });
     if (!response.ok) {
+      console.error("Fetch matches failed with status", response.status);
       throw new Error(await parseApiError(response));
     }
     const data = await response.json();
-    pendingRefineMatches = serializeGames(data.games ?? []);
+    pendingRefineMatches = data.suggestions ?? [];
     renderSearchResults(pendingRefineMatches);
     showStatus(`Choose one of the ${pendingRefineMatches.length} matches.`);
   } catch (error) {
@@ -353,7 +363,21 @@ const confirmRefineDialog = async () => {
   }
   showStatus("Refreshing metadata…");
   try {
-    const [serialized] = serializeGames([pendingRefineSelection]);
+    const response = await fetch("/api/games/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: pendingRefineSelection.title,
+        platform: existing.platform,
+        source: existing.source,
+        record_id: pendingRefineSelection.record_id,
+      }),
+    });
+    if (!response.ok) {
+      throw new Error(await parseApiError(response));
+    }
+    const updatedGame = await response.json();
+    const [serialized] = serializeGames([updatedGame]);
     serialized.__id = existing.__id;
     const index = state.games.findIndex((game) => game.__id === existing.__id);
     if (index !== -1) {

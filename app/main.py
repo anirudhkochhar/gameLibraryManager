@@ -71,6 +71,7 @@ class ManualGameRequest(BaseModel):
     title: str
     platform: Optional[str] = None
     source: Optional[str] = None
+    record_id: Optional[int] = None
 
 
 @api_router.get("/health")
@@ -149,18 +150,37 @@ async def create_game(payload: ManualGameRequest) -> Game:
     title = payload.title.strip()
     if not title:
         raise HTTPException(status_code=400, detail="Title is required.")
-    return metadata_provider.build_game(title, payload.platform, payload.source)
+    return metadata_provider.build_game(
+        title,
+        payload.platform,
+        payload.source,
+        record_id=payload.record_id,
+    )
 
 
-@api_router.post("/games/search", response_model=GameCollection)
-async def search_games(payload: ManualGameRequest) -> GameCollection:
+class GameSuggestion(BaseModel):
+    title: str
+    description: Optional[str] = None
+    record_id: Optional[int] = None
+
+
+class GameSuggestionCollection(BaseModel):
+    suggestions: list[GameSuggestion]
+
+
+@api_router.post("/games/search", response_model=GameSuggestionCollection)
+async def search_games(payload: ManualGameRequest) -> GameSuggestionCollection:
     title = payload.title.strip()
     if not title:
         raise HTTPException(status_code=400, detail="Title is required.")
-    matches = metadata_provider.search_top_games(title, payload.platform, payload.source)
+    logger.debug("Received manual search for title='%s'", title)
+    matches = metadata_provider.search_suggestions(title, limit=5)
+    logger.debug("Manual search for '%s' yielded %d suggestions", title, len(matches))
     if not matches:
         raise HTTPException(status_code=404, detail="No matches found.")
-    return GameCollection(games=matches)
+    return GameSuggestionCollection(
+        suggestions=[GameSuggestion(**item) for item in matches]
+    )
 
 
 def _profile_file(path: str) -> Path:
