@@ -604,6 +604,13 @@ const compareTitles = (a, b) =>
 
 const sortGames = (games) => {
   const sorted = [...games];
+  if (state.sortMode === "random") {
+    for (let i = sorted.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [sorted[i], sorted[j]] = [sorted[j], sorted[i]];
+    }
+    return sorted;
+  }
   if (state.sortMode === "score") {
     sorted.sort((a, b) => {
       const ratingA = typeof a.rating === "number" ? a.rating : -Infinity;
@@ -927,7 +934,11 @@ elements.viewButtons?.forEach((button) => {
 });
 elements.sortSelect?.addEventListener("change", (event) => {
   const mode = event.target.value;
-  state.sortMode = mode === "score" ? "score" : "alphabetical";
+  if (mode === "score" || mode === "random") {
+    state.sortMode = mode;
+  } else {
+    state.sortMode = "alphabetical";
+  }
   if (state.games.length) {
     applyFilter();
   }
