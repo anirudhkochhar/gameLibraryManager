@@ -7,7 +7,7 @@ import logging
 import os
 import re
 import time
-from typing import Dict, List, Optional, Sequence
+from typing import Dict, List, Optional, Sequence, Tuple
 
 import httpx
 
@@ -70,6 +70,12 @@ def normalize_key(value: str) -> str:
     """Return a normalized key for easy dictionary lookups."""
     cleaned = re.sub(r"[^a-z0-9]+", " ", value.lower())
     return re.sub(r"\s+", " ", cleaned).strip()
+
+
+def normalize_optional(value: Optional[str]) -> str:
+    if not value:
+        return ""
+    return normalize_key(value)
 
 
 def slugify(value: str) -> str:
@@ -363,6 +369,7 @@ class MetadataProvider:
         client_secret = os.getenv("IGDB_CLIENT_SECRET")
         self.offline_provider = PlaceholderMetadataProvider()
         self.primary_provider: Optional[IgdbMetadataProvider] = None
+        self._cache: Dict[Tuple[str, str, str, Optional[int]], Game] = {}
 
         if client_id and client_secret:
             self.primary_provider = IgdbMetadataProvider(client_id, client_secret)
@@ -372,6 +379,18 @@ class MetadataProvider:
                 "IGDB_CLIENT_ID/IGDB_CLIENT_SECRET not set. Using placeholder metadata."
             )
 
+    @staticmethod
+    def _cache_key(
+        title: str,
+        platform: Optional[str],
+        source: Optional[str],
+        record_id: Optional[int],
+    ) -> Tuple[str, str, str, Optional[int]]:
+        normalized_title = normalize_key(title)
+        platform_key = normalize_optional(platform)
+        source_key = normalize_optional(source)
+        return (normalized_title, platform_key, source_key, record_id)
+
     def build_game(
         self,
         title: str,
@@ -379,15 +398,44 @@ class MetadataProvider:
         source: Optional[str] = None,
         record_id: Optional[int] = None,
     ) -> Game:
+        cache_key = self._cache_key(title, platform, source, record_id)
+        cached = self._cache.get(cache_key)
+        if cached:
+            logger.debug(
+                "Metadata cache hit for title='%s' platform='%s' source='%s' record_id=%s",
+                title,
+                platform,
+                source,
+                record_id,
+            )
+            return cached
+
         if self.primary_provider:
             try:
-                return self.primary_provider.build_game(
+                game = self.primary_provider.build_game(
                     title, platform, source, record_id=record_id
                 )
+                self._cache[cache_key] = game
+                logger.debug(
+                    "Metadata cache store (IGDB) for title='%s' platform='%s' source='%s' record_id=%s",
+                    title,
+                    platform,
+                    source,
+                    record_id,
+                )
+                return game
             except Exception as exc:  # pragma: no cover - best-effort logging
                 logger.warning("Falling back to placeholder metadata: %s", exc)
 
-        return self.offline_provider.build_game(title, platform, source)
+        game = self.offline_provider.build_game(title, platform, source)
+        self._cache[cache_key] = game
+        logger.debug(
+            "Metadata cache store (placeholder) for title='%s' platform='%s' source='%s'",
+            title,
+            platform,
+            source,
+        )
+        return game
 
     def search_top_games(
         self,
