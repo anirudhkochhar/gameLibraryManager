@@ -137,6 +137,7 @@ class PlaceholderMetadataProvider:
             gallery_urls=gallery_urls,
             status="not_allocated",
             finish_count=0,
+            genres=catalog.get("genres") or [],
         )
 
 
@@ -180,7 +181,7 @@ class IgdbClient:
             f'search "{query_title}";'
             " fields name,summary,platforms.name,platforms.abbreviation,"
             "cover.image_id,artworks.image_id,screenshots.image_id,videos.video_id,"
-            "total_rating;"
+            "total_rating,genres.name;"
             f" limit {limit};"
         )
 
@@ -199,7 +200,7 @@ class IgdbClient:
             f"where id = {record_id};"
             " fields name,summary,platforms.name,platforms.abbreviation,"
             "cover.image_id,artworks.image_id,screenshots.image_id,videos.video_id,"
-            "total_rating;"
+            "total_rating,genres.name;"
         )
         response = self._http.post(
             f"{self.API_BASE}/games",
@@ -256,6 +257,7 @@ class IgdbMetadataProvider:
         resolved_title = (
             user_title or record.get("name") or fallback_title or "Untitled Game"
         )
+        genres = self._genre_names(record)
 
         return Game(
             title=resolved_title,
@@ -270,6 +272,7 @@ class IgdbMetadataProvider:
             gallery_urls=gallery_urls,
             status="not_allocated",
             finish_count=0,
+            genres=genres,
         )
 
     @staticmethod
@@ -340,6 +343,16 @@ class IgdbMetadataProvider:
         if not video_id:
             return None
         return f"https://www.youtube.com/embed/{video_id}?rel=0"
+
+    @staticmethod
+    def _genre_names(record: Dict) -> list[str]:
+        genres: Sequence[Dict] = record.get("genres") or []
+        names: list[str] = []
+        for entry in genres:
+            name = entry.get("name")
+            if name:
+                names.append(name)
+        return names
 
 
 class MetadataProvider:

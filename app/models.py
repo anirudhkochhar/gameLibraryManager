@@ -20,6 +20,7 @@ class Game(BaseModel):
     gallery_urls: list[HttpUrl] = Field(default_factory=list)
     status: str = Field(default="not_allocated")
     finish_count: int = Field(default=0, ge=0)
+    genres: list[str] = Field(default_factory=list)
 
 
 class GameCollection(BaseModel):

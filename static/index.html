@@ -119,6 +119,12 @@
             <option value="without_not_allocated">Everything but Not allocated</option>
           </select>
         </div>
+        <div class="filter-controls">
+          <label for="genre-filter">Filter genre</label>
+          <select id="genre-filter" disabled>
+            <option value="">All genres</option>
+          </select>
+        </div>
         <p id="status" class="status"></p>
       </section>
 
@@ -151,6 +157,7 @@
           </div>
           <h3 class="title"></h3>
           <p class="description"></p>
+          <div class="genre-tags" data-card-genres></div>
         </div>
       </article>
     </template>
@@ -159,12 +166,13 @@
       <article class="game-row" role="button" tabindex="0">
         <img class="thumb" alt="" />
         <div class="info">
-          <div>
-            <p class="platform"></p>
-            <h3 class="title"></h3>
-          </div>
-          <p class="description"></p>
+        <div>
+          <p class="platform"></p>
+          <h3 class="title"></h3>
         </div>
+        <p class="description"></p>
+        <div class="genre-tags" data-row-genres></div>
+      </div>
         <div class="row-meta">
           <p class="status-pill" aria-label="Library status"></p>
           <p class="rating-pill" aria-label="Rating"></p>
@@ -220,6 +228,10 @@
                   value="0"
                 />
               </label>
+            </div>
+            <div class="detail-genres">
+              <h4>Genres</h4>
+              <div class="genre-tags" data-detail-genres></div>
             </div>
           </div>
           <img data-detail-cover alt="Game cover" />

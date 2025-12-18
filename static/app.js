@@ -25,6 +25,7 @@ const elements = {
   sortSelect: document.getElementById("sort-select"),
   storeFilterSelect: document.getElementById("store-filter"),
   statusFilterSelect: document.getElementById("status-filter"),
+  genreFilterSelect: document.getElementById("genre-filter"),
   cacheClearButton: document.getElementById("cache-clear"),
   confirmDialog: document.getElementById("confirm-dialog"),
   confirmCancelButtons: document.querySelectorAll("[data-confirm-cancel]"),
@@ -53,6 +54,8 @@ const STATUS_FILTER_LABELS = {
   ...STATUS_LABEL_LOOKUP,
   without_not_allocated: "Everything but Not allocated",
 };
+const UNKNOWN_GENRE_VALUE = "__unknown";
+const UNKNOWN_GENRE_LABEL = "Unknown genre";
 
 const sanitizeStatus = (value) => {
   if (!value) return DEFAULT_STATUS;
@@ -78,6 +81,7 @@ const normalizeGame = (game) => {
     gallery_urls: game.gallery_urls ?? [],
     status: sanitizeStatus(game.status),
     finish_count: clampFinishCount(finishValue),
+    genres: Array.isArray(game.genres) ? game.genres.filter(Boolean) : [],
   };
 };
 
@@ -89,6 +93,7 @@ const state = {
   sortMode: "alphabetical",
   storeFilter: "",
   statusFilter: "",
+  genreFilter: "",
   profilePath: null,
 };
 
@@ -151,6 +156,32 @@ const applyStatusLabel = (element, status) => {
   } else {
     element.dataset.hidden = "false";
     element.textContent = label;
+  }
+};
+
+const renderGenreTags = (container, genres = [], { limit = null } = {}) => {
+  if (!container) return;
+  container.innerHTML = "";
+  const normalized = Array.isArray(genres) ? genres.filter(Boolean) : [];
+  const values = limit ? normalized.slice(0, limit) : normalized;
+  if (!values.length) {
+    const badge = document.createElement("span");
+    badge.className = "genre-badge genre-badge--empty";
+    badge.textContent = UNKNOWN_GENRE_LABEL;
+    container.appendChild(badge);
+    return;
+  }
+  values.forEach((genre) => {
+    const badge = document.createElement("span");
+    badge.className = "genre-badge";
+    badge.textContent = genre;
+    container.appendChild(badge);
+  });
+  if (limit && normalized.length > limit) {
+    const badge = document.createElement("span");
+    badge.className = "genre-badge";
+    badge.textContent = `+${normalized.length - limit}`;
+    container.appendChild(badge);
   }
 };
 
@@ -229,6 +260,62 @@ const updateStoreFilterOptions = () => {
   select.value = state.storeFilter || "";
 };
 
+const updateGenreFilterOptions = () => {
+  const select = elements.genreFilterSelect;
+  if (!select) return;
+  if (!state.games.length) {
+    state.genreFilter = "";
+  }
+  const normalizedTarget = (state.genreFilter || "").toLowerCase();
+  const genreSet = new Map();
+  let hasUnknown = false;
+  state.games.forEach((game) => {
+    const genres = Array.isArray(game.genres) ? game.genres : [];
+    if (!genres.length) {
+      hasUnknown = true;
+      return;
+    }
+    genres.forEach((genre) => {
+      if (!genre) return;
+      genreSet.set(genre.toLowerCase(), genre);
+    });
+  });
+  const genres = Array.from(genreSet.values()).sort((a, b) =>
+    a.localeCompare(b, undefined, { sensitivity: "base" })
+  );
+  select.innerHTML = "";
+  const defaultOption = document.createElement("option");
+  defaultOption.value = "";
+  defaultOption.textContent = "All genres";
+  select.appendChild(defaultOption);
+  genres.forEach((genre) => {
+    const option = document.createElement("option");
+    option.value = genre;
+    option.textContent = genre;
+    select.appendChild(option);
+  });
+  if (hasUnknown) {
+    const option = document.createElement("option");
+    option.value = UNKNOWN_GENRE_VALUE;
+    option.textContent = UNKNOWN_GENRE_LABEL;
+    select.appendChild(option);
+  }
+  if (state.genreFilter) {
+    if (state.genreFilter === UNKNOWN_GENRE_VALUE && !hasUnknown) {
+      state.genreFilter = "";
+    } else if (state.genreFilter && state.genreFilter !== UNKNOWN_GENRE_VALUE) {
+      const exists = genres.some(
+        (genre) => genre.toLowerCase() === normalizedTarget
+      );
+      if (!exists) {
+        state.genreFilter = "";
+      }
+    }
+  }
+  select.disabled = genres.length === 0 && !hasUnknown;
+  select.value = state.genreFilter || "";
+};
+
 const updateGameMetadata = (gameId, updates, { message } = {}) => {
   if (!gameId) return null;
   const index = state.games.findIndex((game) => game.__id === gameId);
@@ -238,8 +325,10 @@ const updateGameMetadata = (gameId, updates, { message } = {}) => {
   state.games = [...state.games];
   if (state.selection?.__id === gameId) {
     state.selection = merged;
+    renderGenreTags(detailState.refs?.genres, merged.genres);
   }
   updateStoreFilterOptions();
+  updateGenreFilterOptions();
   const shouldSilence = Boolean(message);
   applyFilter({ silentStatus: shouldSilence });
   persistGameCache();
@@ -271,6 +360,7 @@ const ensureDetailNode = () => {
     refine: node.querySelector("[data-detail-refine]"),
     statusControl: node.querySelector("[data-detail-status]"),
     finishCount: node.querySelector("[data-detail-finish-count]"),
+    genres: node.querySelector("[data-detail-genres]"),
   };
   refs.close?.addEventListener("click", () => closeDetail());
   refs.refine?.addEventListener("click", () => openRefineDialog(state.selection));
@@ -387,6 +477,7 @@ const deleteGameById = (gameId) => {
     closeDetail();
   }
   updateStoreFilterOptions();
+  updateGenreFilterOptions();
   applyFilter();
   showStatus(`${removed.title} removed from the library.`);
   persistGameCache();
@@ -540,6 +631,7 @@ const confirmRefineDialog = async () => {
 	  state.games = [...state.games];
 	  state.selection = serialized;
 	  updateStoreFilterOptions();
+	  updateGenreFilterOptions();
 	  applyFilter();
 	  persistGameCache();
 	  openDetail(serialized, { preserveSelection: true });
@@ -582,6 +674,7 @@ const openDetail = (
   if (refs.finishCount) {
     refs.finishCount.value = clampFinishCount(game.finish_count);
   }
+  renderGenreTags(refs.genres, game.genres);
   detailState.galleryUrls = game.gallery_urls || [];
   detailState.activeIndex = null;
   renderGallery(refs.gallery, detailState.galleryUrls);
@@ -628,6 +721,11 @@ const createCard = (game) => {
     card.querySelector(".info .description").textContent = game.description;
     applyRating(card.querySelector(".row-meta .rating-pill"), game.rating);
     applyStatusLabel(card.querySelector(".row-meta .status-pill"), game.status);
+    renderGenreTags(
+      card.querySelector(".info .genre-tags"),
+      game.genres,
+      { limit: 3 }
+    );
     const store = card.querySelector(".row-meta .store");
     store.textContent =
       game.source || game.platform || "";
@@ -640,6 +738,7 @@ const createCard = (game) => {
     card.querySelector(".description").textContent = game.description;
     applyStatusLabel(card.querySelector(".card-meta .status-pill"), game.status);
     applyRating(card.querySelector(".card-meta .rating-pill"), game.rating);
+    renderGenreTags(card.querySelector(".genre-tags"), game.genres, { limit: 3 });
   }
 
   const deleteBtn = card.querySelector(".delete-game");
@@ -755,7 +854,21 @@ const describeStatusFilter = (value) => {
   return STATUS_FILTER_LABELS[value] || STATUS_LABEL_LOOKUP[value] || null;
 };
 
-const buildFilterMessage = (count, query, storeFilterLabel, statusFilterValue) => {
+const describeGenreFilter = (value) => {
+  if (!value) return null;
+  if (value === UNKNOWN_GENRE_VALUE) {
+    return UNKNOWN_GENRE_LABEL;
+  }
+  return value;
+};
+
+const buildFilterMessage = (
+  count,
+  query,
+  storeFilterLabel,
+  statusFilterValue,
+  genreFilterValue
+) => {
   const activeFilters = [];
   if (query) {
     activeFilters.push(`“${query}”`);
@@ -766,6 +879,10 @@ const buildFilterMessage = (count, query, storeFilterLabel, statusFilterValue) =
   const statusLabel = describeStatusFilter(statusFilterValue);
   if (statusLabel) {
     activeFilters.push(statusLabel);
+  }
+  const genreLabel = describeGenreFilter(genreFilterValue);
+  if (genreLabel) {
+    activeFilters.push(genreLabel);
   }
   if (!activeFilters.length) {
     return `Displaying ${count} games.`;
@@ -778,6 +895,7 @@ const applyFilter = ({ silentStatus = false } = {}) => {
   const query = queryRaw.toLowerCase();
   const storeFilter = (state.storeFilter || "").toLowerCase();
   const statusFilter = state.statusFilter || "";
+  const genreFilter = state.genreFilter || "";
 
   state.filtered = state.games.filter((game) => {
     const haystack = `${game.title} ${game.platform ?? ""} ${
@@ -792,7 +910,14 @@ const applyFilter = ({ silentStatus = false } = {}) => {
       (statusFilter === "without_not_allocated"
         ? gameStatus !== DEFAULT_STATUS
         : gameStatus === statusFilter);
-    return matchesQuery && matchesStore && matchesStatus;
+    const genres = Array.isArray(game.genres) ? game.genres : [];
+    const normalizedGenres = genres.map((genre) => genre.toLowerCase());
+    const matchesGenre =
+      !genreFilter ||
+      (genreFilter === UNKNOWN_GENRE_VALUE
+        ? normalizedGenres.length === 0
+        : normalizedGenres.includes(genreFilter.toLowerCase()));
+    return matchesQuery && matchesStore && matchesStatus && matchesGenre;
   });
 
   state.filtered = sortGames(state.filtered);
@@ -802,7 +927,8 @@ const applyFilter = ({ silentStatus = false } = {}) => {
     state.filtered.length,
     queryRaw,
     state.storeFilter,
-    statusFilter
+    statusFilter,
+    genreFilter
   );
   if (!silentStatus) {
     showStatus(message);
@@ -820,6 +946,7 @@ const ingestGames = (games, { skipAutoSave = false, append = false } = {}) => {
   state.selection = null;
   elements.searchInput.value = "";
   updateStoreFilterOptions();
+  updateGenreFilterOptions();
   applyFilter();
   closeDetail();
   persistGameCache();
@@ -979,6 +1106,7 @@ const handleManualAdd = async (event) => {
       elements.manualForm.reset();
     }
     updateStoreFilterOptions();
+    updateGenreFilterOptions();
     applyFilter();
     persistGameCache();
     showStatus(`${gameWithId.title} added to your library.`);
@@ -1105,6 +1233,10 @@ elements.storeFilterSelect?.addEventListener("change", (event) => {
 });
 elements.statusFilterSelect?.addEventListener("change", (event) => {
   state.statusFilter = event.target.value || "";
+  applyFilter();
+});
+elements.genreFilterSelect?.addEventListener("change", (event) => {
+  state.genreFilter = event.target.value || "";
   applyFilter();
 });
 

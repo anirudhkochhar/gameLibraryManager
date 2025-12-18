@@ -64,6 +64,7 @@ class ProfileEntry(BaseModel):
     record_id: Optional[int] = None
     status: Optional[str] = None
     finish_count: Optional[int] = None
+    genres: Optional[list[str]] = None
 
 
 class ProfileSaveRequest(ProfileDirectory):
@@ -203,6 +204,7 @@ async def save_profile(payload: ProfileSaveRequest) -> JSONResponse:
             "record_id": entry.record_id,
             "status": entry.status,
             "finish_count": entry.finish_count,
+            "genres": entry.genres,
         }
         for entry in payload.games
     ]
@@ -234,13 +236,22 @@ async def load_profile(payload: ProfileDirectory) -> GameCollection:
         )
         status = entry.get("status") or "not_allocated"
         finish_count = entry.get("finish_count") or 0
+        genres = entry.get("genres") or []
         try:
             finish_count = int(finish_count)
         except (TypeError, ValueError):
             finish_count = 0
         if finish_count < 0:
             finish_count = 0
-        game = game.copy(update={"status": status, "finish_count": finish_count})
+        if not isinstance(genres, list):
+            genres = []
+        game = game.copy(
+            update={
+                "status": status,
+                "finish_count": finish_count,
+                "genres": genres or game.genres,
+            }
+        )
         games.append(game)
     if not games:
         raise HTTPException(status_code=400, detail="Profile contains no games.")

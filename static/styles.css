@@ -427,6 +427,10 @@ button:hover {
   font-size: 0.95rem;
 }
 
+.detail-genres h4 {
+  margin: 1rem 0 0.35rem;
+}
+
 .detail-subgrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -640,6 +644,27 @@ body.lightbox-open {
 
 .status-pill[data-hidden="true"] {
   display: none;
+}
+
+.genre-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.4rem;
+}
+
+.genre-badge {
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 0.75rem;
+  color: #f2f5ff;
+  text-transform: capitalize;
+}
+
+.genre-badge--empty {
+  opacity: 0.7;
 }
 
 .card-meta-actions {
