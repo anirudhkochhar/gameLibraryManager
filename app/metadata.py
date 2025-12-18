@@ -250,8 +250,13 @@ class IgdbMetadataProvider:
         if rating_value is not None:
             rating_value = round(rating_value, 1)
 
+        user_title = (fallback_title or "").strip()
+        resolved_title = (
+            user_title or record.get("name") or fallback_title or "Untitled Game"
+        )
+
         return Game(
-            title=record.get("name") or fallback_title,
+            title=resolved_title,
             platform=resolved_platform,
             source=resolved_source,
             record_id=record.get("id"),
