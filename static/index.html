@@ -52,11 +52,21 @@
           />
           <button type="button" id="sample-button">Load sample library</button>
         </div>
+        <div class="view-toggle" role="group" aria-label="Select layout">
+          <button type="button" class="active" data-view-mode="grid">
+            Grid
+          </button>
+          <button type="button" data-view-mode="list">List</button>
+        </div>
         <p id="status" class="status"></p>
       </section>
 
       <section class="panel grid-panel">
         <div id="game-grid" class="game-grid" aria-live="polite"></div>
+        <div id="loading-indicator" class="loading-indicator hidden">
+          <span class="spinner" aria-hidden="true"></span>
+          <p>Loading more games…</p>
+        </div>
       </section>
     </main>
 
@@ -68,6 +78,20 @@
           <h3 class="title"></h3>
           <p class="description"></p>
         </div>
+      </article>
+    </template>
+
+    <template id="game-row-template">
+      <article class="game-row" role="button" tabindex="0">
+        <img class="thumb" alt="" />
+        <div class="info">
+          <div>
+            <p class="platform"></p>
+            <h3 class="title"></h3>
+          </div>
+          <p class="description"></p>
+        </div>
+        <p class="store"></p>
       </article>
     </template>
 

@@ -11,12 +11,15 @@ const elements = {
   lightboxImage: document.getElementById("lightbox-image"),
   lightboxCloseEls: document.querySelectorAll("[data-overlay-close]"),
   lightboxFullscreen: document.querySelector("[data-overlay-fullscreen]"),
+  listTemplate: document.getElementById("game-row-template"),
+  viewButtons: document.querySelectorAll("[data-view-mode]"),
 };
 
 const state = {
   games: [],
   filtered: [],
   selection: null,
+  viewMode: "grid",
 };
 
 const detailState = {
@@ -27,6 +30,9 @@ const detailState = {
 };
 
 let gameIdCounter = 0;
+const BATCH_SIZE = 24;
+let renderGeneration = 0;
+let pendingDetailId = null;
 
 const formatPlatform = (game) => {
   if (!game.platform && !game.source) {
@@ -42,6 +48,14 @@ const showStatus = (message, type = "info") => {
   if (!elements.status) return;
   elements.status.textContent = message ?? "";
   elements.status.classList.toggle("error", type === "error");
+};
+
+const showLoadingIndicator = () => {
+  elements.loadingIndicator?.classList.remove("hidden");
+};
+
+const hideLoadingIndicator = () => {
+  elements.loadingIndicator?.classList.add("hidden");
 };
 
 const serializeGames = (games) =>
@@ -200,17 +214,31 @@ const openDetail = (
 };
 
 const createCard = (game) => {
-  const content = elements.template.content.cloneNode(true);
-  const card = content.querySelector(".game-card");
+  const template =
+    state.viewMode === "list" ? elements.listTemplate : elements.template;
+  const content = template.content.cloneNode(true);
+  const card = content.querySelector(
+    state.viewMode === "list" ? ".game-row" : ".game-card"
+  );
   card.dataset.id = game.__id;
 
-  const cover = card.querySelector("img.cover");
-  cover.src = game.cover_url;
-  cover.alt = `${game.title} cover art`;
-
-  card.querySelector(".platform").textContent = formatPlatform(game);
-  card.querySelector(".title").textContent = game.title;
-  card.querySelector(".description").textContent = game.description;
+  if (state.viewMode === "list") {
+    const thumb = card.querySelector("img.thumb");
+    thumb.src = game.thumbnail_url || game.cover_url;
+    thumb.alt = `${game.title} artwork`;
+    card.querySelector(".info .platform").textContent = formatPlatform(game);
+    card.querySelector(".info .title").textContent = game.title;
+    card.querySelector(".info .description").textContent = game.description;
+    card.querySelector(".store").textContent =
+      game.source || game.platform || "";
+  } else {
+    const cover = card.querySelector("img.cover");
+    cover.src = game.cover_url;
+    cover.alt = `${game.title} cover art`;
+    card.querySelector(".platform").textContent = formatPlatform(game);
+    card.querySelector(".title").textContent = game.title;
+    card.querySelector(".description").textContent = game.description;
+  }
 
   card.addEventListener("click", () => openDetail(game, { scrollIntoView: true }));
   card.addEventListener("keypress", (event) => {
@@ -224,28 +252,66 @@ const createCard = (game) => {
 };
 
 const renderGrid = (games) => {
+  renderGeneration += 1;
+  const generation = renderGeneration;
   elements.grid.innerHTML = "";
+  elements.grid.classList.toggle("list-view", state.viewMode === "list");
   if (!games.length) {
     closeDetail();
+    hideLoadingIndicator();
     elements.grid.innerHTML =
       '<p class="status">No games match the current filter.</p>';
     return;
   }
 
-  const fragment = document.createDocumentFragment();
-  games.forEach((game) => fragment.appendChild(createCard(game)));
-  elements.grid.appendChild(fragment);
+  pendingDetailId = state.selection ? state.selection.__id : null;
+  showLoadingIndicator();
+  streamRender(generation, games);
+};
 
-  if (state.selection) {
-    const stillVisible = games.find((g) => g.__id === state.selection.__id);
-    if (stillVisible) {
-      openDetail(stillVisible, { preserveSelection: true });
-    } else {
-      closeDetail();
+const streamRender = async (generation, games) => {
+  const queue = [...games];
+  while (queue.length && generation === renderGeneration) {
+    const fragment = document.createDocumentFragment();
+    for (let i = 0; i < BATCH_SIZE && queue.length; i += 1) {
+      const game = queue.shift();
+      fragment.appendChild(createCard(game));
     }
-  } else {
-    closeDetail(false);
+    elements.grid.appendChild(fragment);
+
+    if (pendingDetailId) {
+      const targetCard = elements.grid.querySelector(
+        `[data-id="${pendingDetailId}"]`
+      );
+      if (targetCard && state.selection) {
+        openDetail(state.selection, { preserveSelection: true });
+        pendingDetailId = null;
+      }
+    }
+
+    await new Promise((resolve) => requestAnimationFrame(resolve));
   }
+
+  if (generation !== renderGeneration) {
+    return;
+  }
+
+  hideLoadingIndicator();
+  pendingDetailId = null;
+  if (!state.selection) {
+    closeDetail(false);
+  } else {
+    const stillVisible = games.find((g) => g.__id === state.selection.__id);
+    if (!stillVisible) {
+      closeDetail();
+    } else {
+      openDetail(stillVisible, { preserveSelection: true });
+    }
+  }
+};
+
+const renderNextBatch = () => {
+  // No-op retained for legacy callers (if any).
 };
 
 const applyFilter = () => {
@@ -282,6 +348,17 @@ const parseApiError = async (response) => {
   } catch {
     return response.statusText || "Unknown error";
   }
+};
+
+const setViewMode = (mode) => {
+  if (state.viewMode === mode) return;
+  state.viewMode = mode;
+  elements.viewButtons?.forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.viewMode === mode);
+  });
+  const source =
+    state.filtered.length || !state.games.length ? state.filtered : state.games;
+  renderGrid([...source]);
 };
 
 elements.lightboxCloseEls?.forEach((el) =>
@@ -366,6 +443,10 @@ elements.searchInput?.addEventListener("input", () => {
     return;
   }
   applyFilter();
+});
+
+elements.viewButtons?.forEach((button) => {
+  button.addEventListener("click", () => setViewMode(button.dataset.viewMode));
 });
 
 // Wait for user interaction (upload or sample) before populating the grid.

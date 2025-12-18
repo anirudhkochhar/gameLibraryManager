@@ -122,6 +122,27 @@ button:hover {
   gap: 1rem;
 }
 
+.view-toggle {
+  display: inline-flex;
+  align-self: flex-start;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.view-toggle button {
+  border: none;
+  background: none;
+  padding: 0.4rem 1rem;
+  font-weight: 600;
+  color: #c7cbe0;
+}
+
+.view-toggle button.active {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
 .search-bar {
   display: flex;
   flex-wrap: wrap;
@@ -152,6 +173,39 @@ button:hover {
   display: grid;
   gap: 1rem;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+}
+
+.game-grid.list-view {
+  display: flex;
+  flex-direction: column;
+}
+
+.loading-indicator {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+  color: #9ea6c5;
+}
+
+.loading-indicator.hidden {
+  display: none;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.25);
+  border-top-color: #7ea5ff;
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .game-card {
@@ -396,6 +450,62 @@ body.lightbox-open {
   line-height: 1;
 }
 
+.game-row {
+  display: grid;
+  grid-template-columns: 120px 1fr 120px;
+  gap: 1rem;
+  align-items: center;
+  background: rgba(18, 20, 33, 0.95);
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  transition: border-color 0.1s ease, transform 0.1s ease;
+}
+
+.game-row:focus-visible,
+.game-row:hover {
+  border-color: rgba(110, 144, 255, 0.7);
+  transform: translateY(-2px);
+}
+
+.game-row img.thumb {
+  width: 100%;
+  border-radius: 12px;
+  object-fit: cover;
+  height: 90px;
+}
+
+.game-row .info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.game-row .info .platform {
+  font-size: 0.75rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #8ad1ff;
+  margin: 0;
+}
+
+.game-row .info .title {
+  margin: 0;
+}
+
+.game-row .info .description {
+  margin: 0;
+  color: #b7bed6;
+}
+
+.game-row .store {
+  margin: 0;
+  text-align: right;
+  font-weight: 600;
+  color: #d0d4e1;
+}
+
 @media (max-width: 720px) {
   .detail-subgrid {
     grid-template-columns: 1fr;
@@ -410,5 +520,13 @@ body.lightbox-open {
 @media (max-width: 720px) {
   .game-card img.cover {
     height: 240px;
+  }
+
+  .game-row {
+    grid-template-columns: 1fr;
+  }
+
+  .game-row .store {
+    text-align: left;
   }
 }
