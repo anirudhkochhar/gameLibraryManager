@@ -61,6 +61,13 @@ const STATUS_FILTER_LABELS = {
 };
 const UNKNOWN_GENRE_VALUE = "__unknown";
 const UNKNOWN_GENRE_LABEL = "Unknown genre";
+const BROKEN_IMAGE_URL =
+  "data:image/svg+xml;utf8," +
+  encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="200" viewBox="0 0 320 200"><rect width="100%" height="100%" fill="#1b1e2a"/><path d="M40 40h240v120H40z" fill="none" stroke="#e57373" stroke-width="6"/><path d="M70 150l60-60 40 40 30-30 40 50" fill="none" stroke="#e57373" stroke-width="6"/><path d="M100 70l120 60M220 70L100 130" stroke="#e57373" stroke-width="6"/></svg>'
+  );
+
+const resolveImageUrl = (url) => (url ? url : BROKEN_IMAGE_URL);
 
 const sanitizeStatus = (value) => {
   if (!value) return DEFAULT_STATUS;
@@ -792,7 +799,7 @@ const openDetail = (
   refs.title.textContent = game.title;
   refs.platform.textContent = formatPlatform(game);
   refs.description.textContent = game.description;
-  refs.cover.src = game.cover_url;
+  refs.cover.src = resolveImageUrl(game.cover_url);
   refs.cover.alt = `${game.title} cover art`;
   if (refs.statusControl) {
     refs.statusControl.value = sanitizeStatus(game.status);
@@ -840,7 +847,7 @@ const createCard = (game) => {
 
   if (state.viewMode === "list") {
     const thumb = card.querySelector("img.thumb");
-    thumb.src = game.thumbnail_url || game.cover_url;
+    thumb.src = resolveImageUrl(game.thumbnail_url || game.cover_url);
     thumb.alt = `${game.title} artwork`;
     card.querySelector(".info .platform").textContent = formatPlatform(game);
     card.querySelector(".info .title").textContent = game.title;
@@ -857,7 +864,7 @@ const createCard = (game) => {
       game.source || game.platform || "";
   } else {
     const cover = card.querySelector("img.cover");
-    cover.src = game.cover_url;
+    cover.src = resolveImageUrl(game.cover_url);
     cover.alt = `${game.title} cover art`;
     card.querySelector(".platform").textContent = formatPlatform(game);
     card.querySelector(".title").textContent = game.title;

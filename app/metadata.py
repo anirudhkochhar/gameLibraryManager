@@ -424,6 +424,17 @@ class MetadataProvider:
                     record_id,
                 )
                 return game
+            except MetadataLookupError:
+                game = self._empty_game(title, platform, source, record_id)
+                self._cache[cache_key] = game
+                logger.info(
+                    "No IGDB match for title='%s' platform='%s' source='%s' record_id=%s",
+                    title,
+                    platform,
+                    source,
+                    record_id,
+                )
+                return game
             except Exception as exc:  # pragma: no cover - best-effort logging
                 logger.warning("Falling back to placeholder metadata: %s", exc)
 
@@ -436,6 +447,29 @@ class MetadataProvider:
             source,
         )
         return game
+
+    @staticmethod
+    def _empty_game(
+        title: str,
+        platform: Optional[str],
+        source: Optional[str],
+        record_id: Optional[int],
+    ) -> Game:
+        return Game(
+            title=title,
+            platform=platform,
+            source=source or platform,
+            record_id=record_id,
+            description="",
+            thumbnail_url=None,
+            cover_url=None,
+            trailer_url=None,
+            rating=None,
+            gallery_urls=[],
+            status="not_allocated",
+            finish_count=0,
+            genres=[],
+        )
 
     def search_top_games(
         self,

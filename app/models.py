@@ -13,8 +13,8 @@ class Game(BaseModel):
     source: Optional[str] = None
     record_id: Optional[int] = None
     description: str
-    thumbnail_url: HttpUrl
-    cover_url: HttpUrl
+    thumbnail_url: Optional[HttpUrl] = None
+    cover_url: Optional[HttpUrl] = None
     trailer_url: Optional[HttpUrl] = None
     rating: Optional[float] = None
     gallery_urls: list[HttpUrl] = Field(default_factory=list)
