@@ -26,6 +26,11 @@ const elements = {
   storeFilterSelect: document.getElementById("store-filter"),
   statusFilterSelect: document.getElementById("status-filter"),
   genreFilterSelect: document.getElementById("genre-filter"),
+  selectionBar: document.getElementById("selection-bar"),
+  selectionCount: document.getElementById("selection-count"),
+  selectionStatus: document.getElementById("selection-status"),
+  selectionApplyButton: document.getElementById("selection-apply"),
+  selectionClearButton: document.getElementById("selection-clear"),
   cacheClearButton: document.getElementById("cache-clear"),
   confirmDialog: document.getElementById("confirm-dialog"),
   confirmCancelButtons: document.querySelectorAll("[data-confirm-cancel]"),
@@ -85,6 +90,25 @@ const normalizeGame = (game) => {
   };
 };
 
+const populateStatusSelect = (select, { includePlaceholder = false } = {}) => {
+  if (!select || select.dataset.populated === "true") {
+    return;
+  }
+  if (includePlaceholder) {
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = "Choose status…";
+    select.appendChild(placeholder);
+  }
+  STATUS_OPTIONS.forEach((option) => {
+    const node = document.createElement("option");
+    node.value = option.value;
+    node.textContent = option.label;
+    select.appendChild(node);
+  });
+  select.dataset.populated = "true";
+};
+
 const state = {
   games: [],
   filtered: [],
@@ -94,6 +118,7 @@ const state = {
   storeFilter: "",
   statusFilter: "",
   genreFilter: "",
+  selectedIds: new Set(),
   profilePath: null,
 };
 
@@ -316,7 +341,89 @@ const updateGenreFilterOptions = () => {
   select.value = state.genreFilter || "";
 };
 
-const updateGameMetadata = (gameId, updates, { message } = {}) => {
+const updateSelectionUI = () => {
+  if (!elements.selectionBar || !elements.selectionCount) return;
+  const count = state.selectedIds.size;
+  elements.selectionCount.textContent =
+    count > 0 ? `${count} selected` : "No games selected";
+  elements.selectionBar.hidden = count === 0;
+  if (elements.selectionApplyButton) {
+    elements.selectionApplyButton.disabled = count === 0;
+  }
+};
+
+const toggleGameSelection = (gameId, card) => {
+  if (!gameId) return;
+  const currentlySelected = state.selectedIds.has(gameId);
+  if (currentlySelected) {
+    state.selectedIds.delete(gameId);
+  } else {
+    state.selectedIds.add(gameId);
+  }
+  const target =
+    card || elements.grid.querySelector(`[data-id="${gameId}"]`);
+  target?.classList.toggle("selected", !currentlySelected);
+  const toggle = target?.querySelector("[data-select-toggle]");
+  if (toggle) {
+    toggle.setAttribute("aria-pressed", (!currentlySelected).toString());
+  }
+  updateSelectionUI();
+};
+
+const clearSelections = ({ silent = false } = {}) => {
+  if (!state.selectedIds.size) {
+    return;
+  }
+  state.selectedIds.forEach((id) => {
+    const card = elements.grid.querySelector(`[data-id="${id}"]`);
+    card?.classList.remove("selected");
+    const toggle = card?.querySelector("[data-select-toggle]");
+    toggle?.setAttribute("aria-pressed", "false");
+  });
+  state.selectedIds.clear();
+  updateSelectionUI();
+  if (!silent) {
+    showStatus("Selection cleared.");
+  }
+};
+
+const applyBulkStatus = () => {
+  if (!state.selectedIds.size) {
+    showStatus("Select at least one game first.", "error");
+    return;
+  }
+  const desired = elements.selectionStatus?.value;
+  if (!desired) {
+    showStatus("Choose a status before applying.", "error");
+    return;
+  }
+  const nextStatus = sanitizeStatus(desired);
+  let updatedCount = 0;
+  state.selectedIds.forEach((id) => {
+    const result = updateGameMetadata(
+      id,
+      { status: nextStatus },
+      { silent: true, deferFilter: true }
+    );
+    if (result) {
+      updatedCount += 1;
+    }
+  });
+  if (updatedCount) {
+    applyFilter({ silentStatus: true });
+    const label =
+      STATUS_LABEL_LOOKUP[nextStatus] || STATUS_LABEL_LOOKUP[DEFAULT_STATUS];
+    showStatus(`Updated ${updatedCount} game(s) to ${label}.`);
+  } else {
+    showStatus("No games were updated.", "error");
+  }
+};
+
+const updateGameMetadata = (
+  gameId,
+  updates,
+  { message, silent = false, deferFilter = false } = {}
+) => {
   if (!gameId) return null;
   const index = state.games.findIndex((game) => game.__id === gameId);
   if (index === -1) return null;
@@ -329,8 +436,10 @@ const updateGameMetadata = (gameId, updates, { message } = {}) => {
   }
   updateStoreFilterOptions();
   updateGenreFilterOptions();
-  const shouldSilence = Boolean(message);
-  applyFilter({ silentStatus: shouldSilence });
+  const shouldSilence = silent || Boolean(message);
+  if (!deferFilter) {
+    applyFilter({ silentStatus: shouldSilence });
+  }
   persistGameCache();
   autoSaveProfile();
   if (message) {
@@ -364,14 +473,7 @@ const ensureDetailNode = () => {
   };
   refs.close?.addEventListener("click", () => closeDetail());
   refs.refine?.addEventListener("click", () => openRefineDialog(state.selection));
-  if (refs.statusControl && !refs.statusControl.options.length) {
-    STATUS_OPTIONS.forEach((option) => {
-      const nodeOption = document.createElement("option");
-      nodeOption.value = option.value;
-      nodeOption.textContent = option.label;
-      refs.statusControl.appendChild(nodeOption);
-    });
-  }
+  populateStatusSelect(refs.statusControl);
   refs.statusControl?.addEventListener("change", (event) => {
     const nextStatus = sanitizeStatus(event.target.value);
     if (!state.selection) return;
@@ -476,9 +578,13 @@ const deleteGameById = (gameId) => {
   if (state.selection?.__id === gameId) {
     closeDetail();
   }
+  if (state.selectedIds.has(gameId)) {
+    state.selectedIds.delete(gameId);
+  }
   updateStoreFilterOptions();
   updateGenreFilterOptions();
   applyFilter();
+  updateSelectionUI();
   showStatus(`${removed.title} removed from the library.`);
   persistGameCache();
   autoSaveProfile();
@@ -741,6 +847,20 @@ const createCard = (game) => {
     renderGenreTags(card.querySelector(".genre-tags"), game.genres, { limit: 3 });
   }
 
+  card.classList.toggle("selected", state.selectedIds.has(game.__id));
+
+  const selectBtn = card.querySelector("[data-select-toggle]");
+  if (selectBtn) {
+    selectBtn.setAttribute(
+      "aria-pressed",
+      state.selectedIds.has(game.__id).toString()
+    );
+    selectBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      toggleGameSelection(game.__id, card);
+    });
+  }
+
   const deleteBtn = card.querySelector(".delete-game");
   deleteBtn?.addEventListener("click", (event) => {
     event.stopPropagation();
@@ -941,6 +1061,7 @@ const ingestGames = (games, { skipAutoSave = false, append = false } = {}) => {
   if (append && state.games.length) {
     state.games = [...state.games, ...serialized];
   } else {
+    clearSelections({ silent: true });
     state.games = serialized;
   }
   state.selection = null;
@@ -1239,6 +1360,10 @@ elements.genreFilterSelect?.addEventListener("change", (event) => {
   state.genreFilter = event.target.value || "";
   applyFilter();
 });
+elements.selectionApplyButton?.addEventListener("click", applyBulkStatus);
+elements.selectionClearButton?.addEventListener("click", () =>
+  clearSelections()
+);
 
 elements.manualForm?.addEventListener("submit", handleManualAdd);
 elements.profileLoadButton?.addEventListener("click", () => {
@@ -1297,6 +1422,9 @@ const bootstrapProfile = () => {
     console.warn("Failed to restore cache", error);
   }
 };
+
+populateStatusSelect(elements.selectionStatus, { includePlaceholder: true });
+updateSelectionUI();
 
 // Wait for user interaction (upload or sample) before populating the grid.
 bootstrapProfile();

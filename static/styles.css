@@ -210,6 +210,37 @@ button:hover {
   min-width: 220px;
 }
 
+.selection-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  padding: 0.6rem 0.75rem;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.selection-bar[hidden] {
+  display: none;
+}
+
+.selection-bar label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.9rem;
+  color: #c7cbe0;
+}
+
+.selection-bar select {
+  padding: 0.45rem 0.7rem;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+}
+
 .status {
   min-height: 1.25rem;
   color: #9ea6c5;
@@ -274,6 +305,11 @@ button:hover {
 .game-card:hover {
   transform: translateY(-3px);
   border-color: rgba(110, 144, 255, 0.5);
+}
+
+.game-card.selected {
+  border-color: rgba(99, 219, 190, 0.7);
+  box-shadow: 0 0 0 2px rgba(99, 219, 190, 0.25);
 }
 
 .game-card img.cover {
@@ -573,6 +609,11 @@ body.lightbox-open {
   transform: translateY(-2px);
 }
 
+.game-row.selected {
+  border-color: rgba(99, 219, 190, 0.7);
+  box-shadow: 0 0 0 2px rgba(99, 219, 190, 0.2);
+}
+
 .game-row img.thumb {
   width: 100%;
   border-radius: 12px;
@@ -674,6 +715,36 @@ body.lightbox-open {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
+}
+
+.select-toggle {
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.05);
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  color: #c7cbe0;
+  padding: 0;
+}
+
+.select-toggle::after {
+  content: "＋";
+  line-height: 1;
+}
+
+.select-toggle[aria-pressed="true"] {
+  background: rgba(99, 219, 190, 0.2);
+  border-color: rgba(99, 219, 190, 0.8);
+  color: #63dbbe;
+}
+
+.select-toggle[aria-pressed="true"]::after {
+  content: "✓";
+  font-weight: 700;
 }
 
 .delete-game {

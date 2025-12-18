@@ -125,6 +125,19 @@
             <option value="">All genres</option>
           </select>
         </div>
+        <div id="selection-bar" class="selection-bar" hidden>
+          <p id="selection-count">0 selected</p>
+          <label>
+            <span>Bulk status</span>
+            <select id="selection-status">
+              <option value="">Choose status…</option>
+            </select>
+          </label>
+          <button type="button" id="selection-apply">Apply to selected</button>
+          <button type="button" class="secondary" id="selection-clear">
+            Clear selection
+          </button>
+        </div>
         <p id="status" class="status"></p>
       </section>
 
@@ -146,6 +159,13 @@
             <div class="card-meta-actions">
               <span class="status-pill" aria-label="Library status"></span>
               <span class="rating-pill" aria-label="Rating"></span>
+              <button
+                type="button"
+                class="select-toggle"
+                aria-label="Select game"
+                aria-pressed="false"
+                data-select-toggle
+              ></button>
               <button
                 type="button"
                 class="delete-game"
@@ -177,6 +197,13 @@
           <p class="status-pill" aria-label="Library status"></p>
           <p class="rating-pill" aria-label="Rating"></p>
           <p class="store"></p>
+          <button
+            type="button"
+            class="select-toggle"
+            aria-label="Select game"
+            aria-pressed="false"
+            data-select-toggle
+          ></button>
           <button
             type="button"
             class="delete-game"
