@@ -1,0 +1,7 @@
+# Example export that mixes Steam, Epic, Amazon and GOG
+Steam: Elden Ring
+Epic Games Store: Hades
+GOG: The Witcher 3: Wild Hunt | PC
+Amazon: Star Wars Jedi: Fallen Order
+Steam: Doom Eternal
+Steam: God of War
