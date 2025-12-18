@@ -21,6 +21,7 @@ const elements = {
   profilePathInput: document.getElementById("profile-path"),
   profileLoadButton: document.getElementById("profile-load"),
   profileSaveButton: document.getElementById("profile-save"),
+  cacheClearButton: document.getElementById("cache-clear"),
   confirmDialog: document.getElementById("confirm-dialog"),
   confirmCancelButtons: document.querySelectorAll("[data-confirm-cancel]"),
   confirmConfirmButton: document.querySelector("[data-confirm-confirm]"),
@@ -52,6 +53,7 @@ const BATCH_SIZE = 24;
 let renderGeneration = 0;
 let pendingDetailId = null;
 const PROFILE_STORAGE_KEY = "glProfilePath";
+const CACHE_STORAGE_KEY = "glCachedGames";
 let pendingDeleteId = null;
 let pendingRefineId = null;
 let pendingRefineSelection = null;
@@ -104,6 +106,22 @@ const serializeGames = (games) =>
     gallery_urls: game.gallery_urls ?? [],
     __id: `game-${Date.now()}-${gameIdCounter++}`,
   }));
+
+const persistGameCache = () => {
+  try {
+    if (!state.games.length) {
+      localStorage.removeItem(CACHE_STORAGE_KEY);
+      return;
+    }
+    const payload = state.games.map((game) => ({
+      ...game,
+      cachedAt: Date.now(),
+    }));
+    localStorage.setItem(CACHE_STORAGE_KEY, JSON.stringify(payload));
+  } catch (error) {
+    console.warn("Failed to cache games", error);
+  }
+};
 
 const ensureDetailNode = () => {
   if (detailState.node) {
@@ -540,6 +558,7 @@ const ingestGames = (games, { skipAutoSave = false } = {}) => {
   elements.searchInput.value = "";
   applyFilter();
   closeDetail();
+  persistGameCache();
   if (!skipAutoSave) {
     autoSaveProfile();
   }
@@ -805,6 +824,19 @@ const bootstrapProfile = () => {
     persistProfilePath(stored);
     loadProfile(stored);
   }
+
+  try {
+    const cached = localStorage.getItem(CACHE_STORAGE_KEY);
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (Array.isArray(parsed) && parsed.length) {
+        ingestGames(parsed, { skipAutoSave: true });
+        showStatus("Loaded cached library. Profile will refresh when available.");
+      }
+    }
+  } catch (error) {
+    console.warn("Failed to restore cache", error);
+  }
 };
 
 // Wait for user interaction (upload or sample) before populating the grid.
@@ -818,6 +850,10 @@ elements.searchCancelButtons?.forEach((button) => {
 });
 elements.searchConfirmButton?.addEventListener("click", confirmRefineDialog);
 elements.searchFetchButton?.addEventListener("click", fetchRefineMatches);
+elements.cacheClearButton?.addEventListener("click", () => {
+  localStorage.removeItem(CACHE_STORAGE_KEY);
+  showStatus("Browser cache cleared.");
+});
 elements.searchCancelButtons?.forEach((button) => {
   button.addEventListener("click", cancelRefineDialog);
 });
