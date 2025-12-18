@@ -1100,7 +1100,9 @@ const applyFilter = ({ silentStatus = false } = {}) => {
         ? normalizedGenres.length === 0
         : normalizedGenres.includes(genreFilter.toLowerCase()));
     const igdbMatch = game.igdb_match === true;
-    const ratingNeedsReview = Boolean(game.rating_match_title);
+    const ratingNeedsReview =
+      game.rating == null || !Number.isFinite(Number(game.rating)) ||
+      Boolean(game.rating_match_title);
     const matchesMetadata =
       !metadataFilter ||
       (metadataFilter === "missing_igdb"
