@@ -602,8 +602,13 @@ const applyFilter = () => {
   showStatus(`Found ${state.filtered.length} result(s) for “${query}”.`);
 };
 
-const ingestGames = (games, { skipAutoSave = false } = {}) => {
-  state.games = serializeGames(games);
+const ingestGames = (games, { skipAutoSave = false, append = false } = {}) => {
+  const serialized = serializeGames(games);
+  if (append && state.games.length) {
+    state.games = [...state.games, ...serialized];
+  } else {
+    state.games = serialized;
+  }
   state.selection = null;
   elements.searchInput.value = "";
   applyFilter();
@@ -834,7 +839,7 @@ const handleUpload = async (event) => {
       throw new Error(message);
     }
     const data = await response.json();
-    ingestGames(data.games ?? []);
+    ingestGames(data.games ?? [], { append: true });
     showStatus(`Loaded ${data.games.length} games from ${file.name}.`);
   } catch (error) {
     console.error(error);
