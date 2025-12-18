@@ -9,6 +9,7 @@ from typing import Iterable, Optional, Tuple
 
 from dotenv import load_dotenv
 from fastapi import APIRouter, FastAPI, File, HTTPException, UploadFile, status
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -141,7 +142,7 @@ async def upload_games(file: UploadFile = File(...)) -> GameCollection:
             status_code=400, detail="File must be UTF-8 encoded text."
         ) from exc
 
-    games = _parse_file_payload(text)
+    games = await run_in_threadpool(_parse_file_payload, text)
     if not games:
         raise HTTPException(
             status_code=400, detail="No games were detected. Check the file format."
@@ -154,11 +155,12 @@ async def create_game(payload: ManualGameRequest) -> Game:
     title = payload.title.strip()
     if not title:
         raise HTTPException(status_code=400, detail="Title is required.")
-    return metadata_provider.build_game(
+    return await run_in_threadpool(
+        metadata_provider.build_game,
         title,
         payload.platform,
         payload.source,
-        record_id=payload.record_id,
+        payload.record_id,
     )
 
 
@@ -178,7 +180,9 @@ async def search_games(payload: ManualGameRequest) -> GameSuggestionCollection:
     if not title:
         raise HTTPException(status_code=400, detail="Title is required.")
     logger.debug("Received manual search for title='%s'", title)
-    matches = metadata_provider.search_suggestions(title, limit=5)
+    matches = await run_in_threadpool(
+        metadata_provider.search_suggestions, title, limit=5
+    )
     logger.debug("Manual search for '%s' yielded %d suggestions", title, len(matches))
     if not matches:
         raise HTTPException(status_code=404, detail="No matches found.")
@@ -228,11 +232,12 @@ async def load_profile(payload: ProfileDirectory) -> GameCollection:
         title = entry.get("title")
         if not title:
             continue
-        game = metadata_provider.build_game(
+        game = await run_in_threadpool(
+            metadata_provider.build_game,
             title,
             entry.get("platform"),
             entry.get("source"),
-            record_id=entry.get("record_id"),
+            entry.get("record_id"),
         )
         status = entry.get("status") or "not_allocated"
         finish_count = entry.get("finish_count") or 0
@@ -278,10 +283,13 @@ SAMPLE_ENTRIES: Iterable[Tuple[str, Optional[str], Optional[str]]] = [
 
 @api_router.get("/games/sample", response_model=GameCollection)
 async def sample_games() -> GameCollection:
-    games = [
-        metadata_provider.build_game(title, platform, source)
-        for title, platform, source in SAMPLE_ENTRIES
-    ]
+    games: list[Game] = []
+    for title, platform, source in SAMPLE_ENTRIES:
+        games.append(
+            await run_in_threadpool(
+                metadata_provider.build_game, title, platform, source
+            )
+        )
     return GameCollection(games=games)
 
 
