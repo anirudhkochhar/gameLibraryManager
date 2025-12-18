@@ -15,6 +15,7 @@ class Game(BaseModel):
     thumbnail_url: HttpUrl
     cover_url: HttpUrl
     trailer_url: Optional[HttpUrl] = None
+    rating: Optional[float] = None
     gallery_urls: list[HttpUrl] = Field(default_factory=list)
 
 

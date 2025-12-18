@@ -74,7 +74,10 @@
       <article class="game-card" role="button" tabindex="0">
         <img class="cover" alt="" />
         <div class="card-body">
-          <p class="platform"></p>
+          <div class="card-meta">
+            <p class="platform"></p>
+            <span class="rating-pill" aria-label="Rating"></span>
+          </div>
           <h3 class="title"></h3>
           <p class="description"></p>
         </div>
@@ -91,7 +94,10 @@
           </div>
           <p class="description"></p>
         </div>
-        <p class="store"></p>
+        <div class="row-meta">
+          <p class="rating-pill" aria-label="Rating"></p>
+          <p class="store"></p>
+        </div>
       </article>
     </template>
 
@@ -102,9 +108,12 @@
             <p class="platform" data-detail-platform></p>
             <h2 data-detail-title></h2>
           </div>
-          <button type="button" class="detail-close" data-detail-close>
-            Back to grid
-          </button>
+          <div class="detail-header-actions">
+            <span class="rating-pill" data-detail-rating></span>
+            <button type="button" class="detail-close" data-detail-close>
+              Back to grid
+            </button>
+          </div>
         </div>
 
         <div class="detail-hero">

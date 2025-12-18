@@ -44,6 +44,23 @@ const formatPlatform = (game) => {
   return game.platform || game.source || "Unknown platform";
 };
 
+const formatRating = (value) => {
+  if (value == null) return null;
+  return `${Math.round(value)}%`;
+};
+
+const applyRating = (element, rating) => {
+  if (!element) return;
+  const formatted = formatRating(rating);
+  if (!formatted) {
+    element.dataset.hidden = "true";
+    element.textContent = "";
+  } else {
+    element.dataset.hidden = "false";
+    element.textContent = formatted;
+  }
+};
+
 const showStatus = (message, type = "info") => {
   if (!elements.status) return;
   elements.status.textContent = message ?? "";
@@ -82,6 +99,7 @@ const ensureDetailNode = () => {
     trailerSection: node.querySelector("[data-detail-trailer-section]"),
     trailer: node.querySelector("[data-detail-trailer]"),
     close: node.querySelector("[data-detail-close]"),
+    rating: node.querySelector("[data-detail-rating]"),
   };
   refs.close?.addEventListener("click", () => closeDetail());
   detailState.node = node;
@@ -189,6 +207,7 @@ const openDetail = (
   detailState.galleryUrls = game.gallery_urls || [];
   detailState.activeIndex = null;
   renderGallery(refs.gallery, detailState.galleryUrls);
+  applyRating(refs.rating, game.rating);
   hideLightbox();
 
   if (game.trailer_url) {
@@ -229,7 +248,8 @@ const createCard = (game) => {
     card.querySelector(".info .platform").textContent = formatPlatform(game);
     card.querySelector(".info .title").textContent = game.title;
     card.querySelector(".info .description").textContent = game.description;
-    card.querySelector(".store").textContent =
+    applyRating(card.querySelector(".row-meta .rating-pill"), game.rating);
+    card.querySelector(".row-meta .store").textContent =
       game.source || game.platform || "";
   } else {
     const cover = card.querySelector("img.cover");
@@ -238,6 +258,7 @@ const createCard = (game) => {
     card.querySelector(".platform").textContent = formatPlatform(game);
     card.querySelector(".title").textContent = game.title;
     card.querySelector(".description").textContent = game.description;
+    applyRating(card.querySelector(".card-meta .rating-pill"), game.rating);
   }
 
   card.addEventListener("click", () => openDetail(game, { scrollIntoView: true }));

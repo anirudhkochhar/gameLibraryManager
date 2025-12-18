@@ -238,6 +238,13 @@ button:hover {
   flex: 1;
 }
 
+.game-card .card-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .game-card .platform {
   text-transform: uppercase;
   letter-spacing: 0.2em;
@@ -296,6 +303,12 @@ button:hover {
   justify-content: space-between;
   align-items: flex-start;
   gap: 1rem;
+}
+
+.detail-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
 }
 
 .detail-close {
@@ -506,6 +519,29 @@ body.lightbox-open {
   color: #d0d4e1;
 }
 
+.game-row .row-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.4rem;
+}
+
+.rating-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border-radius: 999px;
+  padding: 0.15rem 0.65rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #fff4d0;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 0.85rem;
+}
+
+.rating-pill[data-hidden="true"] {
+  display: none;
+}
+
 @media (max-width: 720px) {
   .detail-subgrid {
     grid-template-columns: 1fr;
@@ -528,5 +564,9 @@ body.lightbox-open {
 
   .game-row .store {
     text-align: left;
+  }
+
+  .game-row .row-meta {
+    align-items: flex-start;
   }
 }

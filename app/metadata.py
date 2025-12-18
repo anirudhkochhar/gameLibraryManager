@@ -22,30 +22,35 @@ HANDCRAFTED_METADATA: Dict[str, Dict[str, str]] = {
         "thumbnail_url": "https://images.igdb.com/igdb/image/upload/t_cover_big/co2mjs.jpg",
         "cover_url": "https://images.igdb.com/igdb/image/upload/t_1080p/co2mjs.jpg",
         "trailer_url": "https://www.youtube.com/embed/E3Huy2cdih0?rel=0",
+        "rating": 95.0,
     },
     "the witcher 3: wild hunt": {
         "description": "Geralt of Rivia embarks on his most personal contract across war-torn Northern Kingdoms.",
         "thumbnail_url": "https://images.igdb.com/igdb/image/upload/t_cover_big/co1wyy.jpg",
         "cover_url": "https://images.igdb.com/igdb/image/upload/t_1080p/co1wyy.jpg",
         "trailer_url": "https://www.youtube.com/embed/xx8kQ4s5hCY?rel=0",
+        "rating": 93.0,
     },
     "hades": {
         "description": "Battle out of the Underworld in this rogue-like dungeon crawler from Supergiant Games.",
         "thumbnail_url": "https://images.igdb.com/igdb/image/upload/t_cover_big/co25lx.jpg",
         "cover_url": "https://images.igdb.com/igdb/image/upload/t_1080p/co25lx.jpg",
         "trailer_url": "https://www.youtube.com/embed/591V2E1jZ1E?rel=0",
+        "rating": 94.0,
     },
     "doom eternal": {
         "description": "Rip and tear across dimensions to stop Hell's invasion once again.",
         "thumbnail_url": "https://images.igdb.com/igdb/image/upload/t_cover_big/co1r87.jpg",
         "cover_url": "https://images.igdb.com/igdb/image/upload/t_1080p/co1r87.jpg",
         "trailer_url": "https://www.youtube.com/embed/FkklG9MA0vM?rel=0",
+        "rating": 89.0,
     },
     "god of war": {
         "description": "Kratos and Atreus journey through Norse realms filled with gods and monsters.",
         "thumbnail_url": "https://images.igdb.com/igdb/image/upload/t_cover_big/co1tmu.jpg",
         "cover_url": "https://images.igdb.com/igdb/image/upload/t_1080p/co1tmu.jpg",
         "trailer_url": "https://www.youtube.com/embed/K0u_kAWLJOA?rel=0",
+        "rating": 94.0,
     },
 }
 
@@ -107,6 +112,7 @@ class PlaceholderMetadataProvider:
         trailer_url = catalog.get("trailer_url") or DEFAULT_TRAILER
         description = catalog.get("description") or DEFAULT_DESCRIPTION
         gallery_urls = catalog.get("gallery_urls") or placeholder_gallery(title)
+        rating = catalog.get("rating")
 
         return Game(
             title=title,
@@ -116,6 +122,7 @@ class PlaceholderMetadataProvider:
             thumbnail_url=catalog.get("thumbnail_url") or thumbnail_url,
             cover_url=catalog.get("cover_url") or cover_url,
             trailer_url=trailer_url,
+            rating=rating,
             gallery_urls=gallery_urls,
         )
 
@@ -156,7 +163,8 @@ class IgdbClient:
         query = (
             f'search "{query_title}";'
             " fields name,summary,platforms.name,platforms.abbreviation,"
-            "cover.image_id,artworks.image_id,screenshots.image_id,videos.video_id;"
+            "cover.image_id,artworks.image_id,screenshots.image_id,videos.video_id,"
+            "total_rating;"
             " limit 1;"
         )
 
@@ -187,6 +195,9 @@ class IgdbMetadataProvider:
         description = record.get("summary") or DEFAULT_DESCRIPTION
         resolved_platform = platform or self._platform_name(record)
         resolved_source = source or resolved_platform
+        rating_value = record.get("total_rating")
+        if rating_value is not None:
+            rating_value = round(rating_value, 1)
 
         return Game(
             title=record.get("name") or title,
@@ -196,6 +207,7 @@ class IgdbMetadataProvider:
             thumbnail_url=thumbnail_url,
             cover_url=cover_url,
             trailer_url=trailer_url or DEFAULT_TRAILER,
+            rating=rating_value,
             gallery_urls=gallery_urls,
         )
 
