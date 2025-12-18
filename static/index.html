@@ -94,7 +94,7 @@
           <div class="gallery">
             <div class="section-heading">
               <h3>Gallery</h3>
-              <p>Tap an image to open the IGDB asset in a new tab.</p>
+              <p>Click an image to expand it or open the IGDB asset in a new tab.</p>
             </div>
             <div class="gallery-grid" data-detail-gallery></div>
           </div>
@@ -116,6 +116,19 @@
         </div>
       </section>
     </template>
+
+    <div class="lightbox-overlay" id="lightbox-overlay" hidden>
+      <div class="lightbox-backdrop" data-overlay-close></div>
+      <div class="lightbox-stage">
+        <div class="lightbox-toolbar">
+          <button type="button" class="icon" data-overlay-close aria-label="Close image">
+            &times;
+          </button>
+          <button type="button" data-overlay-fullscreen>Open in new tab</button>
+        </div>
+        <img id="lightbox-image" alt="Expanded artwork" />
+      </div>
+    </div>
 
     <script src="/static/app.js" type="module"></script>
   </body>

@@ -7,6 +7,10 @@ const elements = {
   grid: document.getElementById("game-grid"),
   template: document.getElementById("game-card-template"),
   detailTemplate: document.getElementById("detail-panel-template"),
+  lightboxOverlay: document.getElementById("lightbox-overlay"),
+  lightboxImage: document.getElementById("lightbox-image"),
+  lightboxCloseEls: document.querySelectorAll("[data-overlay-close]"),
+  lightboxFullscreen: document.querySelector("[data-overlay-fullscreen]"),
 };
 
 const state = {
@@ -18,6 +22,8 @@ const state = {
 const detailState = {
   node: null,
   refs: null,
+  galleryUrls: [],
+  activeIndex: null,
 };
 
 let gameIdCounter = 0;
@@ -69,6 +75,40 @@ const ensureDetailNode = () => {
   return detailState;
 };
 
+const hideLightbox = () => {
+  if (!elements.lightboxOverlay) return;
+  elements.lightboxOverlay.hidden = true;
+  document.body.classList.remove("lightbox-open");
+  detailState.activeIndex = null;
+};
+
+const openLightboxAt = (index) => {
+  const urls = detailState.galleryUrls;
+  if (!urls?.length || index < 0 || index >= urls.length) {
+    return;
+  }
+  detailState.activeIndex = index;
+  if (!elements.lightboxOverlay || !elements.lightboxImage) return;
+  const title = detailState.refs?.title?.textContent ?? "Artwork";
+  elements.lightboxImage.src = urls[index];
+  elements.lightboxImage.alt = `${title} artwork`;
+  elements.lightboxOverlay.hidden = false;
+  document.body.classList.add("lightbox-open");
+};
+
+const stepLightbox = (delta) => {
+  if (detailState.activeIndex == null) return;
+  const urls = detailState.galleryUrls;
+  if (!urls?.length) return;
+  let nextIndex = detailState.activeIndex + delta;
+  if (nextIndex < 0) {
+    nextIndex = urls.length - 1;
+  } else if (nextIndex >= urls.length) {
+    nextIndex = 0;
+  }
+  openLightboxAt(nextIndex);
+};
+
 const renderGallery = (container, urls = []) => {
   container.innerHTML = "";
   if (!urls.length) {
@@ -81,17 +121,18 @@ const renderGallery = (container, urls = []) => {
 
   const fragment = document.createDocumentFragment();
   urls.forEach((url, index) => {
-    const link = document.createElement("a");
-    link.href = url;
-    link.target = "_blank";
-    link.rel = "noopener";
-    link.title = "Open full resolution image";
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "gallery-thumb";
+    button.title = "Expand artwork";
 
     const image = document.createElement("img");
     image.src = url;
     image.alt = `Gallery image ${index + 1}`;
-    link.appendChild(image);
-    fragment.appendChild(link);
+    button.appendChild(image);
+    button.addEventListener("click", () => openLightboxAt(index));
+
+    fragment.appendChild(button);
   });
 
   container.appendChild(fragment);
@@ -101,6 +142,7 @@ const closeDetail = (clearSelection = true) => {
   if (clearSelection) {
     state.selection = null;
   }
+  hideLightbox();
   if (detailState.node?.parentNode) {
     detailState.node.parentNode.removeChild(detailState.node);
   }
@@ -130,8 +172,10 @@ const openDetail = (
   refs.description.textContent = game.description;
   refs.cover.src = game.cover_url;
   refs.cover.alt = `${game.title} cover art`;
-
-  renderGallery(refs.gallery, game.gallery_urls || []);
+  detailState.galleryUrls = game.gallery_urls || [];
+  detailState.activeIndex = null;
+  renderGallery(refs.gallery, detailState.galleryUrls);
+  hideLightbox();
 
   if (game.trailer_url) {
     refs.trailerSection.hidden = false;
@@ -239,6 +283,35 @@ const parseApiError = async (response) => {
     return response.statusText || "Unknown error";
   }
 };
+
+elements.lightboxCloseEls?.forEach((el) =>
+  el.addEventListener("click", (event) => {
+    event.preventDefault();
+    hideLightbox();
+  })
+);
+
+elements.lightboxFullscreen?.addEventListener("click", () => {
+  const url = elements.lightboxImage?.src;
+  if (url) {
+    window.open(url, "_blank", "noopener");
+  }
+});
+
+document.addEventListener("keydown", (event) => {
+  if (elements.lightboxOverlay?.hidden) {
+    return;
+  }
+  if (event.key === "Escape") {
+    hideLightbox();
+  } else if (event.key === "ArrowRight") {
+    event.preventDefault();
+    stepLightbox(1);
+  } else if (event.key === "ArrowLeft") {
+    event.preventDefault();
+    stepLightbox(-1);
+  }
+});
 
 const handleUpload = async (event) => {
   event.preventDefault();
