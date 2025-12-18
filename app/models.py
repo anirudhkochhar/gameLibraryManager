@@ -11,6 +11,7 @@ class Game(BaseModel):
     title: str
     platform: Optional[str] = None
     source: Optional[str] = None
+    record_id: Optional[int] = None
     description: str
     thumbnail_url: HttpUrl
     cover_url: HttpUrl

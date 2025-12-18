@@ -381,15 +381,16 @@ const confirmRefineDialog = async () => {
     const [serialized] = serializeGames([updatedGame]);
     serialized.__id = existing.__id;
     const index = state.games.findIndex((game) => game.__id === existing.__id);
-    if (index !== -1) {
-      state.games[index] = serialized;
-      state.games = [...state.games];
-      state.selection = serialized;
-      applyFilter();
-      openDetail(serialized, { preserveSelection: true });
-      showStatus(`${serialized.title} updated.`);
-      autoSaveProfile();
-    }
+	if (index !== -1) {
+	  state.games[index] = serialized;
+	  state.games = [...state.games];
+	  state.selection = serialized;
+	  applyFilter();
+	  persistGameCache();
+	  openDetail(serialized, { preserveSelection: true });
+	  showStatus(`${serialized.title} updated.`);
+	  autoSaveProfile();
+	}
   } catch (error) {
     showStatus(error.message, "error");
   } finally {
@@ -625,6 +626,7 @@ const saveProfile = async (path, { silent = false } = {}) => {
       title: game.title,
       platform: game.platform,
       source: game.source,
+      record_id: game.record_id ?? null,
     })),
   };
   try {
@@ -737,6 +739,7 @@ const handleManualAdd = async (event) => {
       elements.manualForm.reset();
     }
     applyFilter();
+    persistGameCache();
     showStatus(`${gameWithId.title} added to your library.`);
     autoSaveProfile();
   } catch (error) {

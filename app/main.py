@@ -61,6 +61,7 @@ class ProfileEntry(BaseModel):
     title: str
     platform: Optional[str] = None
     source: Optional[str] = None
+    record_id: Optional[int] = None
 
 
 class ProfileSaveRequest(ProfileDirectory):
@@ -193,7 +194,12 @@ def _profile_file(path: str) -> Path:
 async def save_profile(payload: ProfileSaveRequest) -> JSONResponse:
     file_path = _profile_file(payload.directory)
     entries = [
-        {"title": entry.title, "platform": entry.platform, "source": entry.source}
+        {
+            "title": entry.title,
+            "platform": entry.platform,
+            "source": entry.source,
+            "record_id": entry.record_id,
+        }
         for entry in payload.games
     ]
     file_path.write_text(json.dumps(entries, indent=2), encoding="utf-8")
@@ -218,7 +224,10 @@ async def load_profile(payload: ProfileDirectory) -> GameCollection:
             continue
         games.append(
             metadata_provider.build_game(
-                title, entry.get("platform"), entry.get("source")
+                title,
+                entry.get("platform"),
+                entry.get("source"),
+                record_id=entry.get("record_id"),
             )
         )
     if not games:
