@@ -226,6 +226,15 @@ async def load_profile(payload: ProfileDirectory) -> GameCollection:
     return GameCollection(games=games)
 
 
+@api_router.post("/profile/delete")
+async def delete_profile(payload: ProfileDirectory) -> JSONResponse:
+    file_path = _profile_file(payload.directory)
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="Profile not found.")
+    file_path.unlink()
+    return JSONResponse({"deleted": True})
+
+
 SAMPLE_ENTRIES: Iterable[Tuple[str, Optional[str], Optional[str]]] = [
     ("Elden Ring", "Steam", "Steam"),
     ("Hades", "Epic", "Epic"),

@@ -21,6 +21,7 @@ const elements = {
   profilePathInput: document.getElementById("profile-path"),
   profileLoadButton: document.getElementById("profile-load"),
   profileSaveButton: document.getElementById("profile-save"),
+  profileDeleteButton: document.getElementById("profile-delete"),
   cacheClearButton: document.getElementById("cache-clear"),
   confirmDialog: document.getElementById("confirm-dialog"),
   confirmCancelButtons: document.querySelectorAll("[data-confirm-cancel]"),
@@ -600,16 +601,18 @@ const parseApiError = async (response) => {
 const getProfilePathInput = () => elements.profilePathInput?.value.trim() || "";
 
 const persistProfilePath = (path) => {
-  state.profilePath = path;
+  state.profilePath = path || null;
   if (elements.profilePathInput) {
-    elements.profilePathInput.value = path;
+    elements.profilePathInput.value = path || "";
   }
-  if (path) {
-    try {
+  try {
+    if (path) {
       localStorage.setItem(PROFILE_STORAGE_KEY, path);
-    } catch (error) {
-      console.warn("Unable to persist profile path", error);
+    } else {
+      localStorage.removeItem(PROFILE_STORAGE_KEY);
     }
+  } catch (error) {
+    console.warn("Unable to persist profile path", error);
   }
 };
 
@@ -669,6 +672,30 @@ const loadProfile = async (path) => {
     showStatus(`Profile loaded from ${path}.`);
   } catch (error) {
     showStatus(error.message, "error");
+  }
+};
+
+const deleteProfile = async (path) => {
+  if (!path) {
+    throw new Error("Profile directory is required.");
+  }
+  showStatus("Deleting profile…");
+  try {
+    const response = await fetch("/api/profile/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ directory: path }),
+    });
+    if (!response.ok) {
+      throw new Error(await parseApiError(response));
+    }
+    persistProfilePath("");
+    ingestGames([], { skipAutoSave: true });
+    localStorage.removeItem(CACHE_STORAGE_KEY);
+    showStatus("Profile deleted.");
+  } catch (error) {
+    showStatus(error.message, "error");
+    throw error;
   }
 };
 
@@ -835,6 +862,19 @@ elements.profileSaveButton?.addEventListener("click", () => {
     return;
   }
   saveProfile(path).catch(() => {});
+});
+
+elements.profileDeleteButton?.addEventListener("click", async () => {
+  const path = getProfilePathInput() || state.profilePath;
+  if (!path) {
+    showStatus("Enter a profile directory before deleting.", "error");
+    return;
+  }
+  try {
+    await deleteProfile(path);
+  } catch {
+    // Errors are surfaced via showStatus.
+  }
 });
 
 const bootstrapProfile = () => {
