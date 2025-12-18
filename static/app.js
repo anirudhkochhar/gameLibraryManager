@@ -106,6 +106,7 @@ const normalizeGame = (game) => {
       typeof game.rating_verified === "boolean" ? game.rating_verified : null,
     rating_manual:
       typeof game.rating_manual === "boolean" ? game.rating_manual : null,
+    rating_source_csv: game.rating_source_csv ?? null,
   };
 };
 
@@ -191,7 +192,7 @@ const formatStatusLabel = (value) => {
   return STATUS_LABEL_LOOKUP[status] || STATUS_LABEL_LOOKUP[DEFAULT_STATUS];
 };
 
-const applyRating = (element, rating, matchTitle, matchElement) => {
+const applyRating = (element, rating, matchTitle, matchElement, sourceCsv) => {
   if (!element) return;
   const formatted = formatRating(rating);
   element.dataset.hidden = "false";
@@ -199,7 +200,8 @@ const applyRating = (element, rating, matchTitle, matchElement) => {
   if (matchElement) {
     if (matchTitle) {
       matchElement.dataset.hidden = "false";
-      matchElement.textContent = `Matched: ${matchTitle}`;
+      const sourceLabel = sourceCsv ? ` (${sourceCsv})` : "";
+      matchElement.textContent = `Matched: ${matchTitle}${sourceLabel}`;
     } else if (matchElement.dataset.showEmpty === "true" && formatted === "N/A") {
       matchElement.dataset.hidden = "false";
       matchElement.textContent = "Matched: (none)";
@@ -856,6 +858,7 @@ const applyRatingSuggestion = (match) => {
     {
       rating: match.score,
       rating_match_title: matchTitle,
+      rating_source_csv: match.source_csv || null,
       rating_verified: true,
       rating_manual: false,
     },
@@ -876,6 +879,7 @@ const applyManualRating = (value) => {
       {
         rating: null,
         rating_match_title: null,
+        rating_source_csv: null,
         rating_verified: true,
         rating_manual: false,
       },
@@ -898,6 +902,7 @@ const applyManualRating = (value) => {
     {
       rating: numeric,
       rating_match_title: null,
+      rating_source_csv: "manual",
       rating_verified: true,
       rating_manual: true,
     },
@@ -927,7 +932,8 @@ const renderRatingSuggestions = (matches = []) => {
     title.textContent = match.title;
     const score = document.createElement("div");
     score.className = "rating-score";
-    score.textContent = `Score: ${Math.round(match.score)}%`;
+    const sourceLabel = match.source_csv ? ` · ${match.source_csv}` : "";
+    score.textContent = `Score: ${Math.round(match.score)}%${sourceLabel}`;
     button.appendChild(title);
     button.appendChild(score);
     button.addEventListener("click", () => applyRatingSuggestion(match));
@@ -1043,7 +1049,13 @@ const openDetail = (
   detailState.galleryUrls = game.gallery_urls || [];
   detailState.activeIndex = null;
   renderGallery(refs.gallery, detailState.galleryUrls);
-  applyRating(refs.rating, game.rating, game.rating_match_title, refs.ratingMatch);
+  applyRating(
+    refs.rating,
+    game.rating,
+    game.rating_match_title,
+    refs.ratingMatch,
+    game.rating_source_csv
+  );
   hideLightbox();
 
   if (game.trailer_url) {
@@ -1088,7 +1100,8 @@ const createCard = (game) => {
       card.querySelector(".row-meta .rating-pill"),
       game.rating,
       game.rating_match_title,
-      card.querySelector(".row-meta .rating-match")
+      card.querySelector(".row-meta .rating-match"),
+      game.rating_source_csv
     );
     applyStatusLabel(card.querySelector(".row-meta .status-pill"), game.status);
     renderGenreTags(
@@ -1111,7 +1124,8 @@ const createCard = (game) => {
       card.querySelector(".card-meta .rating-pill"),
       game.rating,
       game.rating_match_title,
-      card.querySelector(".card-meta .rating-match")
+      card.querySelector(".card-meta .rating-match"),
+      game.rating_source_csv
     );
     renderGenreTags(card.querySelector(".genre-tags"), game.genres, { limit: 3 });
   }
@@ -1419,6 +1433,7 @@ const saveProfile = async (path, { silent = false } = {}) => {
       rating_match_title: game.rating_match_title ?? null,
       rating_verified: game.rating_verified ?? null,
       rating_manual: game.rating_manual ?? null,
+      rating_source_csv: game.rating_source_csv ?? null,
     })),
   };
   try {

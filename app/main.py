@@ -70,6 +70,7 @@ class ProfileEntry(BaseModel):
     rating_match_title: Optional[str] = None
     rating_verified: Optional[bool] = None
     rating_manual: Optional[bool] = None
+    rating_source_csv: Optional[str] = None
 
 
 class ProfileSaveRequest(ProfileDirectory):
@@ -186,6 +187,7 @@ class RatingSearchRequest(BaseModel):
 class RatingSuggestion(BaseModel):
     title: str
     score: float
+    source_csv: str
 
 
 class RatingSuggestionCollection(BaseModel):
@@ -245,6 +247,7 @@ async def save_profile(payload: ProfileSaveRequest) -> JSONResponse:
             "rating_match_title": entry.rating_match_title,
             "rating_verified": entry.rating_verified,
             "rating_manual": entry.rating_manual,
+            "rating_source_csv": entry.rating_source_csv,
         }
         for entry in payload.games
     ]
@@ -290,8 +293,11 @@ async def load_profile(payload: ProfileDirectory) -> GameCollection:
         rating_value = entry.get("rating")
         rating_verified = entry.get("rating_verified")
         rating_manual = entry.get("rating_manual")
+        rating_source_csv = entry.get("rating_source_csv")
         if rating_match_title and rating_value is None:
-            rating_value = metadata_provider.rating_for_title(rating_match_title)
+            rating_value, rating_source_csv = (
+                metadata_provider.rating_entry_for_title(rating_match_title)
+            )
         game = game.copy(
             update={
                 "status": status,
@@ -305,6 +311,9 @@ async def load_profile(payload: ProfileDirectory) -> GameCollection:
                 "rating_manual": rating_manual
                 if rating_manual is not None
                 else game.rating_manual,
+                "rating_source_csv": rating_source_csv
+                if rating_source_csv is not None
+                else game.rating_source_csv,
             }
         )
         games.append(game)

@@ -18,7 +18,12 @@ from .models import Game
 
 logger = logging.getLogger(__name__)
 BASE_DIR = Path(__file__).resolve().parent.parent
-RATINGS_PATH = BASE_DIR / "database" / "critic_ratings.csv"
+RATINGS_FILES = {
+    "critic_ratings.csv": BASE_DIR / "database" / "critic_ratings.csv",
+    "ps5.csv": BASE_DIR / "database" / "ps5.csv",
+    "switch.csv": BASE_DIR / "database" / "switch.csv",
+    "xbox.csv": BASE_DIR / "database" / "xbox.csv",
+}
 
 # A light-weight offline catalog that keeps the UI interesting without any API keys.
 HANDCRAFTED_METADATA: Dict[str, Dict[str, str]] = {
@@ -371,7 +376,11 @@ class MetadataProvider:
         self.offline_provider = PlaceholderMetadataProvider()
         self.primary_provider: Optional[IgdbMetadataProvider] = None
         self._cache: Dict[Tuple[str, str, str, Optional[int]], Game] = {}
-        self._ratings_map, self._ratings_entries = self._load_critic_ratings()
+        (
+            self._critic_ratings_map,
+            self._ratings_entries,
+            self._ratings_map,
+        ) = self._load_critic_ratings()
 
         if client_id and client_secret:
             self.primary_provider = IgdbMetadataProvider(client_id, client_secret)
@@ -382,30 +391,41 @@ class MetadataProvider:
             )
 
     @staticmethod
-    def _load_critic_ratings() -> tuple[Dict[str, tuple[str, float]], list[tuple[str, str, float]]]:
-        ratings_map: Dict[str, tuple[str, float]] = {}
-        entries: list[tuple[str, str, float]] = []
-        if not RATINGS_PATH.exists():
-            logger.warning("Critic ratings file not found at %s", RATINGS_PATH)
-            return ratings_map, entries
-        try:
-            with RATINGS_PATH.open(newline="", encoding="utf-8") as handle:
-                reader = csv.DictReader(handle)
-                for row in reader:
-                    title = (row.get("title") or "").strip()
-                    score_value = (row.get("score") or "").strip()
-                    if not title or not score_value:
-                        continue
-                    try:
-                        score = float(score_value)
-                    except ValueError:
-                        continue
-                    normalized = normalize_key(title)
-                    ratings_map[normalized] = (title, score)
-                    entries.append((normalized, title, score))
-        except OSError as exc:
-            logger.warning("Failed to read critic ratings file: %s", exc)
-        return ratings_map, entries
+    def _load_critic_ratings() -> tuple[
+        Dict[str, tuple[str, float, str]],
+        list[tuple[str, str, float, str]],
+        Dict[str, tuple[str, float, str]],
+    ]:
+        critic_map: Dict[str, tuple[str, float, str]] = {}
+        entries: list[tuple[str, str, float, str]] = []
+        combined_map: Dict[str, tuple[str, float, str]] = {}
+
+        for source_name, path in RATINGS_FILES.items():
+            if not path.exists():
+                logger.warning("Critic ratings file not found at %s", path)
+                continue
+            try:
+                with path.open(newline="", encoding="utf-8") as handle:
+                    reader = csv.DictReader(handle)
+                    for row in reader:
+                        title = (row.get("title") or "").strip()
+                        score_value = (row.get("score") or "").strip()
+                        if not title or not score_value:
+                            continue
+                        try:
+                            score = float(score_value)
+                        except ValueError:
+                            continue
+                        normalized = normalize_key(title)
+                        entry = (title, score, source_name)
+                        entries.append((normalized, title, score, source_name))
+                        combined_map.setdefault(normalized, entry)
+                        if source_name == "critic_ratings.csv":
+                            critic_map[normalized] = entry
+            except OSError as exc:
+                logger.warning("Failed to read critic ratings file %s: %s", path, exc)
+
+        return critic_map, entries, combined_map
 
     @staticmethod
     def _cache_key(
@@ -480,67 +500,75 @@ class MetadataProvider:
         return game
 
     def _apply_critic_rating(self, game: Game) -> Game:
-        rating, match_title = self._lookup_critic_rating(game.title)
+        rating, match_title, source_csv = self._lookup_critic_rating(game.title)
         return game.copy(
             update={
                 "rating": rating,
                 "rating_match_title": match_title,
+                "rating_source_csv": source_csv,
                 "rating_verified": False,
                 "rating_manual": False,
             }
         )
 
-    def _lookup_critic_rating(self, title: str) -> tuple[Optional[float], Optional[str]]:
+    def _lookup_critic_rating(
+        self, title: str
+    ) -> tuple[Optional[float], Optional[str], Optional[str]]:
         normalized = normalize_key(title)
         if not normalized:
-            return None, None
+            return None, None, None
 
-        exact = self._ratings_map.get(normalized)
+        exact = self._critic_ratings_map.get(normalized)
         if exact:
-            matched_title, score = exact
+            matched_title, score, source_csv = exact
             match_title = None if normalize_key(matched_title) == normalized else matched_title
-            return score, match_title
+            return score, match_title, source_csv
 
         if not self._ratings_entries:
-            return None, None
+            return None, None, None
 
         best_ratio = 0.0
-        best_entry: Optional[tuple[str, str, float]] = None
-        for key, matched_title, score in self._ratings_entries:
+        best_entry: Optional[tuple[str, str, float, str]] = None
+        for key, matched_title, score, source_csv in self._ratings_entries:
             ratio = SequenceMatcher(None, normalized, key).ratio()
             if ratio > best_ratio:
                 best_ratio = ratio
-                best_entry = (key, matched_title, score)
+                best_entry = (key, matched_title, score, source_csv)
 
         if not best_entry or best_ratio < 0.6:
-            return None, None
+            return None, None, None
 
-        key, matched_title, score = best_entry
+        key, matched_title, score, source_csv = best_entry
         match_title = None if normalize_key(matched_title) == normalized else matched_title
-        return score, match_title
+        return score, match_title, source_csv
 
-    def search_critic_ratings(self, query: str, limit: int = 8) -> list[Dict[str, float]]:
+    def search_critic_ratings(
+        self, query: str, limit: int = 8
+    ) -> list[Dict[str, object]]:
         normalized = normalize_key(query)
         if not normalized or not self._ratings_entries:
             return []
 
-        scored: list[tuple[float, str, float]] = []
-        for key, matched_title, score in self._ratings_entries:
+        scored: list[tuple[float, str, float, str]] = []
+        for key, matched_title, score, source_csv in self._ratings_entries:
             ratio = SequenceMatcher(None, normalized, key).ratio()
             if normalized in key:
                 ratio += 0.25
             if ratio < 0.35:
                 continue
-            scored.append((ratio, matched_title, score))
+            scored.append((ratio, matched_title, score, source_csv))
 
         scored.sort(key=lambda item: (-item[0], item[1]))
-        results: list[Dict[str, float]] = []
+        results: list[Dict[str, object]] = []
         seen = set()
-        for _, title, score in scored:
-            if title in seen:
+        for _, title, score, source_csv in scored:
+            key = (title, source_csv, score)
+            if key in seen:
                 continue
-            results.append({"title": title, "score": score})
-            seen.add(title)
+            results.append(
+                {"title": title, "score": score, "source_csv": source_csv}
+            )
+            seen.add(key)
             if len(results) >= limit:
                 break
         return results
@@ -551,6 +579,17 @@ class MetadataProvider:
             return None
         match = self._ratings_map.get(normalized)
         return match[1] if match else None
+
+    def rating_entry_for_title(
+        self, title: str
+    ) -> tuple[Optional[float], Optional[str]]:
+        normalized = normalize_key(title)
+        if not normalized:
+            return None, None
+        match = self._ratings_map.get(normalized)
+        if not match:
+            return None, None
+        return match[1], match[2]
 
     @staticmethod
     def _empty_game(
@@ -570,6 +609,7 @@ class MetadataProvider:
             trailer_url=None,
             rating=None,
             rating_match_title=None,
+            rating_source_csv=None,
             rating_verified=False,
             rating_manual=False,
             igdb_match=False,

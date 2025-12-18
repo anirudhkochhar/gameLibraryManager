@@ -18,6 +18,7 @@ class Game(BaseModel):
     trailer_url: Optional[HttpUrl] = None
     rating: Optional[float] = None
     rating_match_title: Optional[str] = None
+    rating_source_csv: Optional[str] = None
     rating_verified: Optional[bool] = None
     rating_manual: Optional[bool] = None
     igdb_match: Optional[bool] = None
