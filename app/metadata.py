@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import csv
 import hashlib
 import logging
 import os
 import re
 import time
+from difflib import SequenceMatcher
+from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
 import httpx
@@ -14,6 +17,8 @@ import httpx
 from .models import Game
 
 logger = logging.getLogger(__name__)
+BASE_DIR = Path(__file__).resolve().parent.parent
+RATINGS_PATH = BASE_DIR / "database" / "critic_ratings.csv"
 
 # A light-weight offline catalog that keeps the UI interesting without any API keys.
 HANDCRAFTED_METADATA: Dict[str, Dict[str, str]] = {
@@ -187,7 +192,7 @@ class IgdbClient:
             f'search "{query_title}";'
             " fields name,summary,platforms.name,platforms.abbreviation,"
             "cover.image_id,artworks.image_id,screenshots.image_id,videos.video_id,"
-            "total_rating,genres.name;"
+            "genres.name;"
             f" limit {limit};"
         )
 
@@ -206,7 +211,7 @@ class IgdbClient:
             f"where id = {record_id};"
             " fields name,summary,platforms.name,platforms.abbreviation,"
             "cover.image_id,artworks.image_id,screenshots.image_id,videos.video_id,"
-            "total_rating,genres.name;"
+            "genres.name;"
         )
         response = self._http.post(
             f"{self.API_BASE}/games",
@@ -255,10 +260,6 @@ class IgdbMetadataProvider:
         description = record.get("summary") or DEFAULT_DESCRIPTION
         resolved_platform = platform or self._platform_name(record)
         resolved_source = source or resolved_platform
-        rating_value = record.get("total_rating")
-        if rating_value is not None:
-            rating_value = round(rating_value, 1)
-
         user_title = (fallback_title or "").strip()
         resolved_title = (
             user_title or record.get("name") or fallback_title or "Untitled Game"
@@ -274,7 +275,7 @@ class IgdbMetadataProvider:
             thumbnail_url=thumbnail_url,
             cover_url=cover_url,
             trailer_url=trailer_url or DEFAULT_TRAILER,
-            rating=rating_value,
+            rating=None,
             gallery_urls=gallery_urls,
             status="not_allocated",
             finish_count=0,
@@ -370,6 +371,7 @@ class MetadataProvider:
         self.offline_provider = PlaceholderMetadataProvider()
         self.primary_provider: Optional[IgdbMetadataProvider] = None
         self._cache: Dict[Tuple[str, str, str, Optional[int]], Game] = {}
+        self._ratings_map, self._ratings_entries = self._load_critic_ratings()
 
         if client_id and client_secret:
             self.primary_provider = IgdbMetadataProvider(client_id, client_secret)
@@ -378,6 +380,32 @@ class MetadataProvider:
             logger.warning(
                 "IGDB_CLIENT_ID/IGDB_CLIENT_SECRET not set. Using placeholder metadata."
             )
+
+    @staticmethod
+    def _load_critic_ratings() -> tuple[Dict[str, tuple[str, float]], list[tuple[str, str, float]]]:
+        ratings_map: Dict[str, tuple[str, float]] = {}
+        entries: list[tuple[str, str, float]] = []
+        if not RATINGS_PATH.exists():
+            logger.warning("Critic ratings file not found at %s", RATINGS_PATH)
+            return ratings_map, entries
+        try:
+            with RATINGS_PATH.open(newline="", encoding="utf-8") as handle:
+                reader = csv.DictReader(handle)
+                for row in reader:
+                    title = (row.get("title") or "").strip()
+                    score_value = (row.get("score") or "").strip()
+                    if not title or not score_value:
+                        continue
+                    try:
+                        score = float(score_value)
+                    except ValueError:
+                        continue
+                    normalized = normalize_key(title)
+                    ratings_map[normalized] = (title, score)
+                    entries.append((normalized, title, score))
+        except OSError as exc:
+            logger.warning("Failed to read critic ratings file: %s", exc)
+        return ratings_map, entries
 
     @staticmethod
     def _cache_key(
@@ -423,7 +451,7 @@ class MetadataProvider:
                     source,
                     record_id,
                 )
-                return game
+                return self._apply_critic_rating(game)
             except MetadataLookupError:
                 game = self._empty_game(title, platform, source, record_id)
                 self._cache[cache_key] = game
@@ -434,11 +462,12 @@ class MetadataProvider:
                     source,
                     record_id,
                 )
-                return game
+                return self._apply_critic_rating(game)
             except Exception as exc:  # pragma: no cover - best-effort logging
                 logger.warning("Falling back to placeholder metadata: %s", exc)
 
         game = self.offline_provider.build_game(title, platform, source)
+        game = self._apply_critic_rating(game)
         self._cache[cache_key] = game
         logger.debug(
             "Metadata cache store (placeholder) for title='%s' platform='%s' source='%s'",
@@ -447,6 +476,39 @@ class MetadataProvider:
             source,
         )
         return game
+
+    def _apply_critic_rating(self, game: Game) -> Game:
+        rating, match_title = self._lookup_critic_rating(game.title)
+        return game.copy(update={"rating": rating, "rating_match_title": match_title})
+
+    def _lookup_critic_rating(self, title: str) -> tuple[Optional[float], Optional[str]]:
+        normalized = normalize_key(title)
+        if not normalized:
+            return None, None
+
+        exact = self._ratings_map.get(normalized)
+        if exact:
+            matched_title, score = exact
+            match_title = None if normalize_key(matched_title) == normalized else matched_title
+            return score, match_title
+
+        if not self._ratings_entries:
+            return None, None
+
+        best_ratio = 0.0
+        best_entry: Optional[tuple[str, str, float]] = None
+        for key, matched_title, score in self._ratings_entries:
+            ratio = SequenceMatcher(None, normalized, key).ratio()
+            if ratio > best_ratio:
+                best_ratio = ratio
+                best_entry = (key, matched_title, score)
+
+        if not best_entry or best_ratio < 0.6:
+            return None, None
+
+        key, matched_title, score = best_entry
+        match_title = None if normalize_key(matched_title) == normalized else matched_title
+        return score, match_title
 
     @staticmethod
     def _empty_game(
@@ -465,6 +527,7 @@ class MetadataProvider:
             cover_url=None,
             trailer_url=None,
             rating=None,
+            rating_match_title=None,
             gallery_urls=[],
             status="not_allocated",
             finish_count=0,

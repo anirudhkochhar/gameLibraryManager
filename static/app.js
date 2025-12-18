@@ -158,7 +158,7 @@ const formatPlatform = (game) => {
 };
 
 const formatRating = (value) => {
-  if (value == null) return null;
+  if (value == null || Number.isNaN(Number(value))) return "N/A";
   return `${Math.round(value)}%`;
 };
 
@@ -167,15 +167,19 @@ const formatStatusLabel = (value) => {
   return STATUS_LABEL_LOOKUP[status] || STATUS_LABEL_LOOKUP[DEFAULT_STATUS];
 };
 
-const applyRating = (element, rating) => {
+const applyRating = (element, rating, matchTitle, matchElement) => {
   if (!element) return;
   const formatted = formatRating(rating);
-  if (!formatted) {
-    element.dataset.hidden = "true";
-    element.textContent = "";
-  } else {
-    element.dataset.hidden = "false";
-    element.textContent = formatted;
+  element.dataset.hidden = "false";
+  element.textContent = formatted;
+  if (matchElement) {
+    if (matchTitle) {
+      matchElement.dataset.hidden = "false";
+      matchElement.textContent = `Matched: ${matchTitle}`;
+    } else {
+      matchElement.dataset.hidden = "true";
+      matchElement.textContent = "";
+    }
   }
 };
 
@@ -483,6 +487,7 @@ const ensureDetailNode = () => {
     trailer: node.querySelector("[data-detail-trailer]"),
     close: node.querySelector("[data-detail-close]"),
     rating: node.querySelector("[data-detail-rating]"),
+    ratingMatch: node.querySelector("[data-detail-rating-match]"),
     refine: node.querySelector("[data-detail-refine]"),
     statusControl: node.querySelector("[data-detail-status]"),
     finishCount: node.querySelector("[data-detail-finish-count]"),
@@ -811,7 +816,7 @@ const openDetail = (
   detailState.galleryUrls = game.gallery_urls || [];
   detailState.activeIndex = null;
   renderGallery(refs.gallery, detailState.galleryUrls);
-  applyRating(refs.rating, game.rating);
+  applyRating(refs.rating, game.rating, game.rating_match_title, refs.ratingMatch);
   hideLightbox();
 
   if (game.trailer_url) {
@@ -852,7 +857,12 @@ const createCard = (game) => {
     card.querySelector(".info .platform").textContent = formatPlatform(game);
     card.querySelector(".info .title").textContent = game.title;
     card.querySelector(".info .description").textContent = game.description;
-    applyRating(card.querySelector(".row-meta .rating-pill"), game.rating);
+    applyRating(
+      card.querySelector(".row-meta .rating-pill"),
+      game.rating,
+      game.rating_match_title,
+      card.querySelector(".row-meta .rating-match")
+    );
     applyStatusLabel(card.querySelector(".row-meta .status-pill"), game.status);
     renderGenreTags(
       card.querySelector(".info .genre-tags"),
@@ -870,7 +880,12 @@ const createCard = (game) => {
     card.querySelector(".title").textContent = game.title;
     card.querySelector(".description").textContent = game.description;
     applyStatusLabel(card.querySelector(".card-meta .status-pill"), game.status);
-    applyRating(card.querySelector(".card-meta .rating-pill"), game.rating);
+    applyRating(
+      card.querySelector(".card-meta .rating-pill"),
+      game.rating,
+      game.rating_match_title,
+      card.querySelector(".card-meta .rating-match")
+    );
     renderGenreTags(card.querySelector(".genre-tags"), game.genres, { limit: 3 });
   }
 

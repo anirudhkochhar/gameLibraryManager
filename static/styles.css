@@ -671,7 +671,21 @@ body.lightbox-open {
   font-size: 0.85rem;
 }
 
-.rating-pill[data-hidden="true"] {
+.rating-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.2rem;
+}
+
+.rating-match {
+  font-size: 0.7rem;
+  color: #d5d9e6;
+  opacity: 0.8;
+}
+
+.rating-pill[data-hidden="true"],
+.rating-match[data-hidden="true"] {
   display: none;
 }
 
