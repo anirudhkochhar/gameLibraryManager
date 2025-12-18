@@ -22,6 +22,7 @@ const elements = {
   profileLoadButton: document.getElementById("profile-load"),
   profileSaveButton: document.getElementById("profile-save"),
   profileDeleteButton: document.getElementById("profile-delete"),
+  sortSelect: document.getElementById("sort-select"),
   cacheClearButton: document.getElementById("cache-clear"),
   confirmDialog: document.getElementById("confirm-dialog"),
   confirmCancelButtons: document.querySelectorAll("[data-confirm-cancel]"),
@@ -39,6 +40,7 @@ const state = {
   filtered: [],
   selection: null,
   viewMode: "grid",
+  sortMode: "alphabetical",
   profilePath: null,
 };
 
@@ -559,10 +561,31 @@ const renderNextBatch = () => {
   // No-op retained for legacy callers (if any).
 };
 
+const compareTitles = (a, b) =>
+  (a.title || "").localeCompare(b.title || "", undefined, { sensitivity: "base" });
+
+const sortGames = (games) => {
+  const sorted = [...games];
+  if (state.sortMode === "score") {
+    sorted.sort((a, b) => {
+      const ratingA = typeof a.rating === "number" ? a.rating : -Infinity;
+      const ratingB = typeof b.rating === "number" ? b.rating : -Infinity;
+      if (ratingB !== ratingA) {
+        return ratingB - ratingA;
+      }
+      return compareTitles(a, b);
+    });
+    return sorted;
+  }
+
+  sorted.sort(compareTitles);
+  return sorted;
+};
+
 const applyFilter = () => {
   const query = elements.searchInput.value.trim().toLowerCase();
   if (!query) {
-    state.filtered = [...state.games];
+    state.filtered = sortGames(state.games);
     renderGrid(state.filtered);
     showStatus(`Displaying ${state.filtered.length} games.`);
     return;
@@ -574,6 +597,7 @@ const applyFilter = () => {
     } ${game.description}`.toLowerCase();
     return haystack.includes(query);
   });
+  state.filtered = sortGames(state.filtered);
   renderGrid(state.filtered);
   showStatus(`Found ${state.filtered.length} result(s) for “${query}”.`);
 };
@@ -757,7 +781,7 @@ const setViewMode = (mode) => {
   if (!source.length) {
     return;
   }
-  renderGrid([...source]);
+  renderGrid(sortGames(source));
 };
 
 elements.lightboxCloseEls?.forEach((el) =>
@@ -846,6 +870,13 @@ elements.searchInput?.addEventListener("input", () => {
 
 elements.viewButtons?.forEach((button) => {
   button.addEventListener("click", () => setViewMode(button.dataset.viewMode));
+});
+elements.sortSelect?.addEventListener("change", (event) => {
+  const mode = event.target.value;
+  state.sortMode = mode === "score" ? "score" : "alphabetical";
+  if (state.games.length) {
+    applyFilter();
+  }
 });
 
 elements.manualForm?.addEventListener("submit", handleManualAdd);
