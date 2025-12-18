@@ -252,6 +252,26 @@
                   placeholder="Search ratings CSV"
                 />
                 <div class="rating-suggestions" data-rating-suggestions></div>
+                <div class="rating-actions">
+                  <label class="rating-manual">
+                    <span>Manual score</span>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="1"
+                      data-rating-manual
+                    />
+                  </label>
+                  <div class="rating-buttons">
+                    <button type="button" data-rating-apply-manual>
+                      Apply manual score
+                    </button>
+                    <button type="button" data-rating-clear>
+                      Use no match
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
             <button

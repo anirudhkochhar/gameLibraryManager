@@ -102,6 +102,10 @@ const normalizeGame = (game) => {
     rating_match_title: game.rating_match_title ?? null,
     igdb_match:
       typeof game.igdb_match === "boolean" ? game.igdb_match : null,
+    rating_verified:
+      typeof game.rating_verified === "boolean" ? game.rating_verified : null,
+    rating_manual:
+      typeof game.rating_manual === "boolean" ? game.rating_manual : null,
   };
 };
 
@@ -514,6 +518,9 @@ const ensureDetailNode = () => {
     ratingEditor: node.querySelector("[data-rating-editor]"),
     ratingInput: node.querySelector("[data-rating-input]"),
     ratingSuggestions: node.querySelector("[data-rating-suggestions]"),
+    ratingManual: node.querySelector("[data-rating-manual]"),
+    ratingApplyManual: node.querySelector("[data-rating-apply-manual]"),
+    ratingClear: node.querySelector("[data-rating-clear]"),
     refine: node.querySelector("[data-detail-refine]"),
     statusControl: node.querySelector("[data-detail-status]"),
     finishCount: node.querySelector("[data-detail-finish-count]"),
@@ -559,6 +566,13 @@ const ensureDetailNode = () => {
       event.preventDefault();
       closeRatingEditor();
     }
+  });
+  refs.ratingApplyManual?.addEventListener("click", () => {
+    const value = refs.ratingManual?.value ?? "";
+    applyManualRating(value);
+  });
+  refs.ratingClear?.addEventListener("click", () => {
+    applyManualRating(null);
   });
   detailState.node = node;
   detailState.refs = refs;
@@ -839,7 +853,12 @@ const applyRatingSuggestion = (match) => {
     normalizedGame && normalizedMatch === normalizedGame ? null : match.title;
   const updated = updateGameMetadata(
     state.selection.__id,
-    { rating: match.score, rating_match_title: matchTitle },
+    {
+      rating: match.score,
+      rating_match_title: matchTitle,
+      rating_verified: true,
+      rating_manual: false,
+    },
     { silent: true }
   );
   if (updated) {
@@ -847,6 +866,48 @@ const applyRatingSuggestion = (match) => {
   }
   closeRatingEditor();
   showStatus(`Rating matched to ${match.title}.`);
+};
+
+const applyManualRating = (value) => {
+  if (!state.selection) return;
+  if (value === null) {
+    const cleared = updateGameMetadata(
+      state.selection.__id,
+      {
+        rating: null,
+        rating_match_title: null,
+        rating_verified: true,
+        rating_manual: false,
+      },
+      { silent: true }
+    );
+    if (cleared) {
+      openDetail(cleared, { preserveSelection: true });
+    }
+    closeRatingEditor();
+    showStatus("Rating cleared.");
+    return;
+  }
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric < 0 || numeric > 100) {
+    showStatus("Enter a manual score between 0 and 100.", "error");
+    return;
+  }
+  const updated = updateGameMetadata(
+    state.selection.__id,
+    {
+      rating: numeric,
+      rating_match_title: null,
+      rating_verified: true,
+      rating_manual: true,
+    },
+    { silent: true }
+  );
+  if (updated) {
+    openDetail(updated, { preserveSelection: true });
+  }
+  closeRatingEditor();
+  showStatus(`Manual rating set to ${Math.round(numeric)}%.`);
 };
 
 const renderRatingSuggestions = (matches = []) => {
@@ -912,20 +973,35 @@ const requestRatingSuggestions = (query) => {
 
 const openRatingEditor = (game) => {
   const { ratingEditor, ratingInput } = detailState.refs || {};
+  const { ratingManual } = detailState.refs || {};
   if (!game || !ratingEditor || !ratingInput) return;
   ratingEditor.hidden = false;
   ratingInput.value = game.rating_match_title || game.title || "";
+  if (ratingManual) {
+    ratingManual.value =
+      game.rating_manual && Number.isFinite(Number(game.rating))
+        ? Math.round(Number(game.rating))
+        : "";
+  }
   ratingInput.focus();
   ratingInput.select();
   requestRatingSuggestions(ratingInput.value);
 };
 
 const closeRatingEditor = () => {
-  const { ratingEditor, ratingInput, ratingSuggestions } = detailState.refs || {};
+  const {
+    ratingEditor,
+    ratingInput,
+    ratingSuggestions,
+    ratingManual,
+  } = detailState.refs || {};
   if (!ratingEditor) return;
   ratingEditor.hidden = true;
   if (ratingInput) {
     ratingInput.value = "";
+  }
+  if (ratingManual) {
+    ratingManual.value = "";
   }
   if (ratingSuggestions) {
     ratingSuggestions.innerHTML = "";
@@ -1243,8 +1319,10 @@ const applyFilter = ({ silentStatus = false } = {}) => {
         : normalizedGenres.includes(genreFilter.toLowerCase()));
     const igdbMatch = game.igdb_match === true;
     const ratingNeedsReview =
-      game.rating == null || !Number.isFinite(Number(game.rating)) ||
-      Boolean(game.rating_match_title);
+      !game.rating_verified &&
+      (game.rating == null ||
+        !Number.isFinite(Number(game.rating)) ||
+        Boolean(game.rating_match_title));
     const matchesMetadata =
       !metadataFilter ||
       (metadataFilter === "missing_igdb"
@@ -1339,6 +1417,8 @@ const saveProfile = async (path, { silent = false } = {}) => {
       finish_count: game.finish_count,
       rating: game.rating ?? null,
       rating_match_title: game.rating_match_title ?? null,
+      rating_verified: game.rating_verified ?? null,
+      rating_manual: game.rating_manual ?? null,
     })),
   };
   try {

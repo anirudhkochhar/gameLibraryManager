@@ -481,7 +481,14 @@ class MetadataProvider:
 
     def _apply_critic_rating(self, game: Game) -> Game:
         rating, match_title = self._lookup_critic_rating(game.title)
-        return game.copy(update={"rating": rating, "rating_match_title": match_title})
+        return game.copy(
+            update={
+                "rating": rating,
+                "rating_match_title": match_title,
+                "rating_verified": False,
+                "rating_manual": False,
+            }
+        )
 
     def _lookup_critic_rating(self, title: str) -> tuple[Optional[float], Optional[str]]:
         normalized = normalize_key(title)
@@ -563,6 +570,8 @@ class MetadataProvider:
             trailer_url=None,
             rating=None,
             rating_match_title=None,
+            rating_verified=False,
+            rating_manual=False,
             igdb_match=False,
             gallery_urls=[],
             status="not_allocated",

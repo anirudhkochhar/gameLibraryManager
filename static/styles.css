@@ -711,6 +711,45 @@ body.lightbox-open {
   font-size: 0.8rem;
 }
 
+.rating-actions {
+  margin-top: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.rating-manual {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.7rem;
+  color: #cfd5e6;
+}
+
+.rating-manual input {
+  width: 100%;
+}
+
+.rating-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.rating-buttons button {
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  color: #f5f6ff;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.rating-buttons button:hover {
+  border-color: rgba(138, 209, 255, 0.6);
+}
+
 .rating-suggestions {
   margin-top: 0.35rem;
   display: flex;

@@ -18,6 +18,8 @@ class Game(BaseModel):
     trailer_url: Optional[HttpUrl] = None
     rating: Optional[float] = None
     rating_match_title: Optional[str] = None
+    rating_verified: Optional[bool] = None
+    rating_manual: Optional[bool] = None
     igdb_match: Optional[bool] = None
     gallery_urls: list[HttpUrl] = Field(default_factory=list)
     status: str = Field(default="not_allocated")

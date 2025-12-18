@@ -68,6 +68,8 @@ class ProfileEntry(BaseModel):
     genres: Optional[list[str]] = None
     rating: Optional[float] = None
     rating_match_title: Optional[str] = None
+    rating_verified: Optional[bool] = None
+    rating_manual: Optional[bool] = None
 
 
 class ProfileSaveRequest(ProfileDirectory):
@@ -241,6 +243,8 @@ async def save_profile(payload: ProfileSaveRequest) -> JSONResponse:
             "genres": entry.genres,
             "rating": entry.rating,
             "rating_match_title": entry.rating_match_title,
+            "rating_verified": entry.rating_verified,
+            "rating_manual": entry.rating_manual,
         }
         for entry in payload.games
     ]
@@ -284,6 +288,8 @@ async def load_profile(payload: ProfileDirectory) -> GameCollection:
             genres = []
         rating_match_title = entry.get("rating_match_title")
         rating_value = entry.get("rating")
+        rating_verified = entry.get("rating_verified")
+        rating_manual = entry.get("rating_manual")
         if rating_match_title and rating_value is None:
             rating_value = metadata_provider.rating_for_title(rating_match_title)
         game = game.copy(
@@ -293,6 +299,12 @@ async def load_profile(payload: ProfileDirectory) -> GameCollection:
                 "genres": genres or game.genres,
                 "rating": rating_value if rating_value is not None else game.rating,
                 "rating_match_title": rating_match_title or game.rating_match_title,
+                "rating_verified": rating_verified
+                if rating_verified is not None
+                else game.rating_verified,
+                "rating_manual": rating_manual
+                if rating_manual is not None
+                else game.rating_manual,
             }
         )
         games.append(game)
