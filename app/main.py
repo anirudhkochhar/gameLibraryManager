@@ -152,6 +152,17 @@ async def create_game(payload: ManualGameRequest) -> Game:
     return metadata_provider.build_game(title, payload.platform, payload.source)
 
 
+@api_router.post("/games/search", response_model=GameCollection)
+async def search_games(payload: ManualGameRequest) -> GameCollection:
+    title = payload.title.strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="Title is required.")
+    matches = metadata_provider.search_top_games(title, payload.platform, payload.source)
+    if not matches:
+        raise HTTPException(status_code=404, detail="No matches found.")
+    return GameCollection(games=matches)
+
+
 def _profile_file(path: str) -> Path:
     directory = Path(path).expanduser()
     directory.mkdir(parents=True, exist_ok=True)

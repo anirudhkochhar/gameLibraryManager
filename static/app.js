@@ -24,6 +24,12 @@ const elements = {
   confirmDialog: document.getElementById("confirm-dialog"),
   confirmCancelButtons: document.querySelectorAll("[data-confirm-cancel]"),
   confirmConfirmButton: document.querySelector("[data-confirm-confirm]"),
+  searchDialog: document.getElementById("search-dialog"),
+  searchInputField: document.getElementById("search-input-field"),
+  searchFetchButton: document.getElementById("search-fetch"),
+  searchCancelButtons: document.querySelectorAll("[data-search-cancel]"),
+  searchConfirmButton: document.querySelector("[data-search-confirm]"),
+  searchResults: document.getElementById("search-results"),
 };
 
 const state = {
@@ -47,6 +53,9 @@ let renderGeneration = 0;
 let pendingDetailId = null;
 const PROFILE_STORAGE_KEY = "glProfilePath";
 let pendingDeleteId = null;
+let pendingRefineId = null;
+let pendingRefineSelection = null;
+let pendingRefineMatches = [];
 
 const formatPlatform = (game) => {
   if (!game.platform && !game.source) {
@@ -114,8 +123,10 @@ const ensureDetailNode = () => {
     trailer: node.querySelector("[data-detail-trailer]"),
     close: node.querySelector("[data-detail-close]"),
     rating: node.querySelector("[data-detail-rating]"),
+    refine: node.querySelector("[data-detail-refine]"),
   };
   refs.close?.addEventListener("click", () => closeDetail());
+  refs.refine?.addEventListener("click", () => openRefineDialog(state.selection));
   detailState.node = node;
   detailState.refs = refs;
   return detailState;
@@ -227,6 +238,120 @@ const confirmDeleteGame = () => {
   if (!pendingDeleteId) return;
   deleteGameById(pendingDeleteId);
   cancelDeleteGame();
+};
+
+const openRefineDialog = (game) => {
+  if (!game || !elements.searchDialog) return;
+  pendingRefineId = game.__id;
+  elements.searchDialog.hidden = false;
+  if (elements.searchInputField) {
+    elements.searchInputField.value = game.title;
+    elements.searchInputField.focus();
+  }
+};
+
+const cancelRefineDialog = () => {
+  pendingRefineId = null;
+  pendingRefineSelection = null;
+  pendingRefineMatches = [];
+  if (elements.searchDialog) {
+    elements.searchDialog.hidden = true;
+  }
+  if (elements.searchResults) {
+    elements.searchResults.innerHTML = "";
+  }
+  elements.searchConfirmButton?.setAttribute("disabled", "true");
+};
+
+const renderSearchResults = (matches = []) => {
+  if (!elements.searchResults) return;
+  elements.searchResults.innerHTML = "";
+  if (!matches.length) {
+    const info = document.createElement("p");
+    info.className = "status";
+    info.textContent = "Run a search to see suggestions.";
+    elements.searchResults.appendChild(info);
+    return;
+  }
+  const fragment = document.createDocumentFragment();
+  matches.forEach((match, index) => {
+    const item = document.createElement("article");
+    item.className = "search-result";
+    if (pendingRefineSelection && pendingRefineSelection.__id === match.__id) {
+      item.classList.add("active");
+    }
+    const title = document.createElement("h4");
+    title.textContent = match.title;
+    const description = document.createElement("p");
+    description.textContent = match.description;
+    item.appendChild(title);
+    item.appendChild(description);
+    item.addEventListener("click", () => {
+      pendingRefineSelection = match;
+      elements.searchConfirmButton?.removeAttribute("disabled");
+      renderSearchResults(matches);
+    });
+    fragment.appendChild(item);
+  });
+  elements.searchResults.appendChild(fragment);
+};
+
+const fetchRefineMatches = async () => {
+  const query = elements.searchInputField?.value.trim();
+  if (!query) {
+    showStatus("Enter a title to search.", "error");
+    return;
+  }
+  showStatus("Searching IGDB…");
+  elements.searchConfirmButton?.setAttribute("disabled", "true");
+  pendingRefineSelection = null;
+  renderSearchResults([]);
+  try {
+    const response = await fetch("/api/games/search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: query }),
+    });
+    if (!response.ok) {
+      throw new Error(await parseApiError(response));
+    }
+    const data = await response.json();
+    pendingRefineMatches = serializeGames(data.games ?? []);
+    renderSearchResults(pendingRefineMatches);
+    showStatus(`Choose one of the ${pendingRefineMatches.length} matches.`);
+  } catch (error) {
+    showStatus(error.message, "error");
+    pendingRefineMatches = [];
+    renderSearchResults([]);
+  }
+};
+
+const confirmRefineDialog = async () => {
+  if (!pendingRefineId || !pendingRefineSelection) return;
+  const existing = state.games.find((game) => game.__id === pendingRefineId);
+  if (!existing) {
+    cancelRefineDialog();
+    return;
+  }
+  showStatus("Refreshing metadata…");
+  try {
+    const [serialized] = serializeGames([pendingRefineSelection]);
+    serialized.__id = existing.__id;
+    const index = state.games.findIndex((game) => game.__id === existing.__id);
+    if (index !== -1) {
+      state.games[index] = serialized;
+      state.games = [...state.games];
+      state.selection = serialized;
+      applyFilter();
+      openDetail(serialized, { preserveSelection: true });
+      showStatus(`${serialized.title} updated.`);
+      autoSaveProfile();
+    }
+  } catch (error) {
+    showStatus(error.message, "error");
+  } finally {
+    cancelRefineDialog();
+  }
 };
 const openDetail = (
   game,
@@ -684,8 +809,16 @@ const bootstrapProfile = () => {
 
 // Wait for user interaction (upload or sample) before populating the grid.
 bootstrapProfile();
-
 elements.confirmCancelButtons?.forEach((button) => {
   button.addEventListener("click", cancelDeleteGame);
 });
 elements.confirmConfirmButton?.addEventListener("click", confirmDeleteGame);
+elements.searchCancelButtons?.forEach((button) => {
+  button.addEventListener("click", cancelRefineDialog);
+});
+elements.searchConfirmButton?.addEventListener("click", confirmRefineDialog);
+elements.searchFetchButton?.addEventListener("click", fetchRefineMatches);
+elements.searchCancelButtons?.forEach((button) => {
+  button.addEventListener("click", cancelRefineDialog);
+});
+elements.searchConfirmButton?.addEventListener("click", confirmRefineDialog);

@@ -58,6 +58,8 @@ DEFAULT_DESCRIPTION = (
     "Game metadata placeholder. Connect a provider such as IGDB to enrich this entry."
 )
 DEFAULT_TRAILER = "https://www.youtube.com/embed/dQw4w9WgXcQ?rel=0"
+EXCLUDED_KEYWORDS = {"bundle", "mobile"}
+STRIP_KEYWORDS = {"goty", "game of the year", "edition"}
 
 
 class MetadataLookupError(RuntimeError):
@@ -72,6 +74,14 @@ def normalize_key(value: str) -> str:
 
 def slugify(value: str) -> str:
     return normalize_key(value).replace(" ", "-") or "game"
+
+
+def strip_keywords(value: str) -> str:
+    normalized = normalize_key(value)
+    for keyword in STRIP_KEYWORDS:
+        normalized = normalized.replace(keyword, " ")
+    normalized = re.sub(r"\s+", " ", normalized).strip()
+    return normalized if normalized else value
 
 
 def placeholder_art(seed: str, width: int, height: int) -> str:
@@ -158,14 +168,14 @@ class IgdbClient:
         self._token = payload["access_token"]
         self._token_expiry = time.time() + int(payload.get("expires_in", 3600)) - 60
 
-    def search_game(self, title: str) -> Optional[Dict]:
-        query_title = title.replace('"', " ")
+    def search_games(self, title: str, limit: int = 5) -> list[Dict]:
+        query_title = strip_keywords(title).replace('"', " ")
         query = (
             f'search "{query_title}";'
             " fields name,summary,platforms.name,platforms.abbreviation,"
             "cover.image_id,artworks.image_id,screenshots.image_id,videos.video_id,"
             "total_rating;"
-            " limit 1;"
+            f" limit {limit};"
         )
 
         response = self._http.post(
@@ -174,8 +184,7 @@ class IgdbClient:
             headers=self._auth_headers(),
         )
         response.raise_for_status()
-        data = response.json()
-        return data[0] if data else None
+        return response.json()
 
 
 class IgdbMetadataProvider:
@@ -185,7 +194,8 @@ class IgdbMetadataProvider:
     def build_game(
         self, title: str, platform: Optional[str] = None, source: Optional[str] = None
     ) -> Game:
-        record = self.client.search_game(title)
+        records = self.client.search_games(title)
+        record = self._select_record(records, title)
         if not record:
             raise MetadataLookupError(f"No IGDB match for '{title}'")
 
@@ -210,6 +220,21 @@ class IgdbMetadataProvider:
             rating=rating_value,
             gallery_urls=gallery_urls,
         )
+
+    @staticmethod
+    def _select_record(records: list[Dict], original_title: str) -> Optional[Dict]:
+        normalized_input = normalize_key(strip_keywords(original_title))
+        for record in records:
+            name = record.get("name") or ""
+            lower_name = name.lower()
+            excluded = any(
+                keyword in lower_name and keyword not in normalized_input
+                for keyword in EXCLUDED_KEYWORDS
+            )
+            if excluded:
+                continue
+            return record
+        return records[0] if records else None
 
     @staticmethod
     def _platform_name(record: Dict) -> Optional[str]:
@@ -293,3 +318,25 @@ class MetadataProvider:
                 logger.warning("Falling back to placeholder metadata: %s", exc)
 
         return self.offline_provider.build_game(title, platform, source)
+
+    def search_top_games(
+        self, title: str, platform: Optional[str] = None, source: Optional[str] = None
+    ) -> list[Game]:
+        if not self.primary_provider:
+            return [self.offline_provider.build_game(title, platform, source)]
+        try:
+            records = self.primary_provider.client.search_games(title, limit=5)
+            games = []
+            for record in records:
+                try:
+                    games.append(
+                        self.primary_provider.build_game(
+                            record.get("name") or title, platform, source
+                        )
+                    )
+                except Exception:
+                    continue
+            return games or [self.offline_provider.build_game(title, platform, source)]
+        except Exception as exc:
+            logger.warning("Failed to fetch IGDB choices: %s", exc)
+            return [self.offline_provider.build_game(title, platform, source)]

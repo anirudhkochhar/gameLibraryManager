@@ -360,6 +360,15 @@ button:hover {
   gap: 0.75rem;
 }
 
+.detail-header-actions .secondary {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.05);
+  color: #f0f2ff;
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
 .detail-close {
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.2);
@@ -661,6 +670,58 @@ body.lightbox-open {
   inset: 0;
   background: rgba(0, 0, 0, 0.7);
   backdrop-filter: blur(4px);
+}
+
+.search-dialog {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1101;
+}
+
+.search-dialog[hidden] {
+  display: none;
+}
+
+.search-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.search-results {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 320px;
+  overflow: auto;
+  margin-top: 0.5rem;
+}
+
+.search-result {
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  padding: 0.75rem;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.search-result:hover,
+.search-result.active {
+  border-color: rgba(110, 144, 255, 0.7);
+  background: rgba(110, 144, 255, 0.15);
+}
+
+.search-result h4 {
+  margin: 0 0 0.3rem;
+}
+
+.search-result p {
+  margin: 0;
+  color: #c7cbe0;
+  font-size: 0.9rem;
 }
 
 .confirm-card {
