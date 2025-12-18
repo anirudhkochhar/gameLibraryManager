@@ -1,6 +1,6 @@
 # Local Python environment managed by conda
 .condaenv/
-
+.env
 # Python cache
 __pycache__/
 *.pyc

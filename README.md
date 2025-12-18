@@ -62,7 +62,7 @@ The metadata layer is handled by `app/metadata.py`. With IGDB credentials presen
 
 * Upload text exports directly from the hero card or reuse the sample data.
 * Search-as-you-type filters across title, platform/store and description.
-* Cards are fully clickable—select one to open a spotlight page with cover art, IGDB screenshots and the trailer embed.
+* Cards expand inline—click one to open a spotlight pane right under the tile with cover art, IGDB screenshots, trailer and a “Back to grid” toggle.
 * Gallery thumbnails deep-link to the IGDB CDN so you can inspect the original full-resolution renders.
 
 Because everything is static assets under `static/`, the FastAPI app simply mounts the directory. Swap it for any SPA framework later if you need routing, authentication or data caching.

@@ -6,22 +6,18 @@ const elements = {
   status: document.getElementById("status"),
   grid: document.getElementById("game-grid"),
   template: document.getElementById("game-card-template"),
-  detailPanel: document.getElementById("detail-panel"),
-  detailEmpty: document.getElementById("detail-empty"),
-  detailContent: document.getElementById("detail-content"),
-  detailTitle: document.getElementById("detail-title"),
-  detailPlatform: document.getElementById("detail-platform"),
-  detailDescription: document.getElementById("detail-description"),
-  detailCover: document.getElementById("detail-cover"),
-  detailGallery: document.getElementById("detail-gallery"),
-  detailTrailerSection: document.getElementById("detail-trailer-section"),
-  detailTrailer: document.getElementById("detail-trailer"),
+  detailTemplate: document.getElementById("detail-panel-template"),
 };
 
 const state = {
   games: [],
   filtered: [],
   selection: null,
+};
+
+const detailState = {
+  node: null,
+  refs: null,
 };
 
 let gameIdCounter = 0;
@@ -49,13 +45,37 @@ const serializeGames = (games) =>
     __id: `game-${Date.now()}-${gameIdCounter++}`,
   }));
 
-const renderGallery = (urls = []) => {
-  elements.detailGallery.innerHTML = "";
+const ensureDetailNode = () => {
+  if (detailState.node) {
+    return detailState;
+  }
+  if (!elements.detailTemplate) {
+    return null;
+  }
+  const node = elements.detailTemplate.content.firstElementChild.cloneNode(true);
+  const refs = {
+    platform: node.querySelector("[data-detail-platform]"),
+    title: node.querySelector("[data-detail-title]"),
+    description: node.querySelector("[data-detail-description]"),
+    cover: node.querySelector("[data-detail-cover]"),
+    gallery: node.querySelector("[data-detail-gallery]"),
+    trailerSection: node.querySelector("[data-detail-trailer-section]"),
+    trailer: node.querySelector("[data-detail-trailer]"),
+    close: node.querySelector("[data-detail-close]"),
+  };
+  refs.close?.addEventListener("click", () => closeDetail());
+  detailState.node = node;
+  detailState.refs = refs;
+  return detailState;
+};
+
+const renderGallery = (container, urls = []) => {
+  container.innerHTML = "";
   if (!urls.length) {
     const placeholder = document.createElement("p");
     placeholder.className = "status";
     placeholder.textContent = "No gallery assets were provided for this title.";
-    elements.detailGallery.appendChild(placeholder);
+    container.appendChild(placeholder);
     return;
   }
 
@@ -74,35 +94,64 @@ const renderGallery = (urls = []) => {
     fragment.appendChild(link);
   });
 
-  elements.detailGallery.appendChild(fragment);
+  container.appendChild(fragment);
 };
 
-const openDetail = (game) => {
-  state.selection = game;
-  if (!game || !elements.detailPanel) {
+const closeDetail = (clearSelection = true) => {
+  if (clearSelection) {
+    state.selection = null;
+  }
+  if (detailState.node?.parentNode) {
+    detailState.node.parentNode.removeChild(detailState.node);
+  }
+};
+
+const openDetail = (
+  game,
+  { preserveSelection = false, scrollIntoView = false } = {}
+) => {
+  if (!game) {
+    closeDetail();
     return;
   }
 
-  elements.detailPanel.classList.remove("hidden");
-  elements.detailEmpty.hidden = true;
-  elements.detailContent.hidden = false;
+  const detail = ensureDetailNode();
+  if (!detail) {
+    return;
+  }
 
-  elements.detailTitle.textContent = game.title;
-  elements.detailPlatform.textContent = formatPlatform(game);
-  elements.detailDescription.textContent = game.description;
-  elements.detailCover.src = game.cover_url;
-  elements.detailCover.alt = `${game.title} cover art`;
+  if (!preserveSelection) {
+    state.selection = game;
+  }
 
-  renderGallery(game.gallery_urls || []);
+  const { refs, node } = detail;
+  refs.title.textContent = game.title;
+  refs.platform.textContent = formatPlatform(game);
+  refs.description.textContent = game.description;
+  refs.cover.src = game.cover_url;
+  refs.cover.alt = `${game.title} cover art`;
+
+  renderGallery(refs.gallery, game.gallery_urls || []);
 
   if (game.trailer_url) {
-    elements.detailTrailerSection.hidden = false;
-    elements.detailTrailer.src = "";
+    refs.trailerSection.hidden = false;
+    refs.trailer.src = "";
     requestAnimationFrame(() => {
-      elements.detailTrailer.src = game.trailer_url;
+      refs.trailer.src = game.trailer_url;
     });
-  } else if (elements.detailTrailerSection) {
-    elements.detailTrailerSection.hidden = true;
+  } else {
+    refs.trailerSection.hidden = true;
+  }
+
+  const card = elements.grid.querySelector(`[data-id="${game.__id}"]`);
+  if (!card) {
+    closeDetail();
+    return;
+  }
+
+  card.insertAdjacentElement("afterend", node);
+  if (scrollIntoView) {
+    node.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 };
 
@@ -119,11 +168,11 @@ const createCard = (game) => {
   card.querySelector(".title").textContent = game.title;
   card.querySelector(".description").textContent = game.description;
 
-  card.addEventListener("click", () => openDetail(game));
+  card.addEventListener("click", () => openDetail(game, { scrollIntoView: true }));
   card.addEventListener("keypress", (event) => {
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
-      openDetail(game);
+      openDetail(game, { scrollIntoView: true });
     }
   });
 
@@ -133,6 +182,7 @@ const createCard = (game) => {
 const renderGrid = (games) => {
   elements.grid.innerHTML = "";
   if (!games.length) {
+    closeDetail();
     elements.grid.innerHTML =
       '<p class="status">No games match the current filter.</p>';
     return;
@@ -141,6 +191,17 @@ const renderGrid = (games) => {
   const fragment = document.createDocumentFragment();
   games.forEach((game) => fragment.appendChild(createCard(game)));
   elements.grid.appendChild(fragment);
+
+  if (state.selection) {
+    const stillVisible = games.find((g) => g.__id === state.selection.__id);
+    if (stillVisible) {
+      openDetail(stillVisible, { preserveSelection: true });
+    } else {
+      closeDetail();
+    }
+  } else {
+    closeDetail(false);
+  }
 };
 
 const applyFilter = () => {
@@ -164,15 +225,10 @@ const applyFilter = () => {
 
 const ingestGames = (games) => {
   state.games = serializeGames(games);
+  state.selection = null;
   elements.searchInput.value = "";
   applyFilter();
-  if (state.games.length) {
-    openDetail(state.games[0]);
-  } else if (elements.detailPanel) {
-    elements.detailPanel.classList.add("hidden");
-    elements.detailContent.hidden = true;
-    elements.detailEmpty.hidden = false;
-  }
+  closeDetail();
 };
 
 const parseApiError = async (response) => {
@@ -239,5 +295,4 @@ elements.searchInput?.addEventListener("input", () => {
   applyFilter();
 });
 
-// Prime UI with sample data for faster demo sessions.
-loadSampleLibrary();
+// Wait for user interaction (upload or sample) before populating the grid.

@@ -58,47 +58,6 @@
       <section class="panel grid-panel">
         <div id="game-grid" class="game-grid" aria-live="polite"></div>
       </section>
-
-      <section class="panel detail-panel hidden" id="detail-panel">
-        <div id="detail-empty" class="detail-empty">
-          Select a game to open its spotlight page with artwork, summary and trailer.
-        </div>
-        <div id="detail-content" class="detail-content" hidden>
-          <div class="detail-hero">
-            <div class="detail-text">
-              <p class="platform" id="detail-platform"></p>
-              <h2 id="detail-title"></h2>
-              <p id="detail-description"></p>
-            </div>
-            <img id="detail-cover" alt="Game cover" />
-          </div>
-
-          <div class="detail-subgrid">
-            <div class="gallery">
-              <div class="section-heading">
-                <h3>Gallery</h3>
-                <p>Tap an image to open the IGDB asset in a new tab.</p>
-              </div>
-              <div id="detail-gallery" class="gallery-grid"></div>
-            </div>
-
-            <div class="detail-trailer" id="detail-trailer-section">
-              <div class="section-heading">
-                <h3>Trailer</h3>
-              </div>
-              <div class="ratio-16x9">
-                <iframe
-                  id="detail-trailer"
-                  title="Game trailer"
-                  src=""
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowfullscreen
-                ></iframe>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
     </main>
 
     <template id="game-card-template">
@@ -110,6 +69,52 @@
           <p class="description"></p>
         </div>
       </article>
+    </template>
+
+    <template id="detail-panel-template">
+      <section class="detail-panel" aria-live="polite">
+        <div class="detail-header">
+          <div>
+            <p class="platform" data-detail-platform></p>
+            <h2 data-detail-title></h2>
+          </div>
+          <button type="button" class="detail-close" data-detail-close>
+            Back to grid
+          </button>
+        </div>
+
+        <div class="detail-hero">
+          <div class="detail-text">
+            <p data-detail-description></p>
+          </div>
+          <img data-detail-cover alt="Game cover" />
+        </div>
+
+        <div class="detail-subgrid">
+          <div class="gallery">
+            <div class="section-heading">
+              <h3>Gallery</h3>
+              <p>Tap an image to open the IGDB asset in a new tab.</p>
+            </div>
+            <div class="gallery-grid" data-detail-gallery></div>
+          </div>
+
+          <div class="detail-trailer" data-detail-trailer-section>
+            <div class="section-heading">
+              <h3>Trailer</h3>
+            </div>
+            <div class="ratio-16x9">
+              <iframe
+                data-detail-trailer
+                title="Game trailer"
+                src=""
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowfullscreen
+              ></iframe>
+            </div>
+          </div>
+        </div>
+      </section>
     </template>
 
     <script src="/static/app.js" type="module"></script>
