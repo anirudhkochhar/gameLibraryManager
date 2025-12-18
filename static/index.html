@@ -239,7 +239,20 @@
           <div class="detail-header-actions">
             <div class="rating-block">
               <span class="rating-pill" data-detail-rating></span>
-              <span class="rating-match" data-detail-rating-match></span>
+              <button
+                type="button"
+                class="rating-match rating-match--editable"
+                data-detail-rating-match
+                data-show-empty="true"
+              ></button>
+              <div class="rating-editor" data-rating-editor hidden>
+                <input
+                  type="text"
+                  data-rating-input
+                  placeholder="Search ratings CSV"
+                />
+                <div class="rating-suggestions" data-rating-suggestions></div>
+              </div>
             </div>
             <button
               type="button"

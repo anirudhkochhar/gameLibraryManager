@@ -512,6 +512,39 @@ class MetadataProvider:
         match_title = None if normalize_key(matched_title) == normalized else matched_title
         return score, match_title
 
+    def search_critic_ratings(self, query: str, limit: int = 8) -> list[Dict[str, float]]:
+        normalized = normalize_key(query)
+        if not normalized or not self._ratings_entries:
+            return []
+
+        scored: list[tuple[float, str, float]] = []
+        for key, matched_title, score in self._ratings_entries:
+            ratio = SequenceMatcher(None, normalized, key).ratio()
+            if normalized in key:
+                ratio += 0.25
+            if ratio < 0.35:
+                continue
+            scored.append((ratio, matched_title, score))
+
+        scored.sort(key=lambda item: (-item[0], item[1]))
+        results: list[Dict[str, float]] = []
+        seen = set()
+        for _, title, score in scored:
+            if title in seen:
+                continue
+            results.append({"title": title, "score": score})
+            seen.add(title)
+            if len(results) >= limit:
+                break
+        return results
+
+    def rating_for_title(self, title: str) -> Optional[float]:
+        normalized = normalize_key(title)
+        if not normalized:
+            return None
+        match = self._ratings_map.get(normalized)
+        return match[1] if match else None
+
     @staticmethod
     def _empty_game(
         title: str,

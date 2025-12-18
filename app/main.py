@@ -66,6 +66,8 @@ class ProfileEntry(BaseModel):
     status: Optional[str] = None
     finish_count: Optional[int] = None
     genres: Optional[list[str]] = None
+    rating: Optional[float] = None
+    rating_match_title: Optional[str] = None
 
 
 class ProfileSaveRequest(ProfileDirectory):
@@ -174,6 +176,20 @@ class GameSuggestionCollection(BaseModel):
     suggestions: list[GameSuggestion]
 
 
+class RatingSearchRequest(BaseModel):
+    query: str
+    limit: Optional[int] = 8
+
+
+class RatingSuggestion(BaseModel):
+    title: str
+    score: float
+
+
+class RatingSuggestionCollection(BaseModel):
+    suggestions: list[RatingSuggestion]
+
+
 @api_router.post("/games/search", response_model=GameSuggestionCollection)
 async def search_games(payload: ManualGameRequest) -> GameSuggestionCollection:
     title = payload.title.strip()
@@ -188,6 +204,20 @@ async def search_games(payload: ManualGameRequest) -> GameSuggestionCollection:
         raise HTTPException(status_code=404, detail="No matches found.")
     return GameSuggestionCollection(
         suggestions=[GameSuggestion(**item) for item in matches]
+    )
+
+
+@api_router.post("/ratings/search", response_model=RatingSuggestionCollection)
+async def search_ratings(payload: RatingSearchRequest) -> RatingSuggestionCollection:
+    query = payload.query.strip()
+    if not query:
+        raise HTTPException(status_code=400, detail="Query is required.")
+    limit = payload.limit or 8
+    suggestions = await run_in_threadpool(
+        metadata_provider.search_critic_ratings, query, limit=limit
+    )
+    return RatingSuggestionCollection(
+        suggestions=[RatingSuggestion(**item) for item in suggestions]
     )
 
 
@@ -209,6 +239,8 @@ async def save_profile(payload: ProfileSaveRequest) -> JSONResponse:
             "status": entry.status,
             "finish_count": entry.finish_count,
             "genres": entry.genres,
+            "rating": entry.rating,
+            "rating_match_title": entry.rating_match_title,
         }
         for entry in payload.games
     ]
@@ -250,11 +282,17 @@ async def load_profile(payload: ProfileDirectory) -> GameCollection:
             finish_count = 0
         if not isinstance(genres, list):
             genres = []
+        rating_match_title = entry.get("rating_match_title")
+        rating_value = entry.get("rating")
+        if rating_match_title and rating_value is None:
+            rating_value = metadata_provider.rating_for_title(rating_match_title)
         game = game.copy(
             update={
                 "status": status,
                 "finish_count": finish_count,
                 "genres": genres or game.genres,
+                "rating": rating_value if rating_value is not None else game.rating,
+                "rating_match_title": rating_match_title or game.rating_match_title,
             }
         )
         games.append(game)

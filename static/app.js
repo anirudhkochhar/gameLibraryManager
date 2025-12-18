@@ -155,6 +155,8 @@ let pendingDeleteId = null;
 let pendingRefineId = null;
 let pendingRefineSelection = null;
 let pendingRefineMatches = [];
+let ratingSearchToken = 0;
+let ratingSearchTimeout = null;
 
 const formatPlatform = (game) => {
   if (!game.platform && !game.source) {
@@ -164,6 +166,15 @@ const formatPlatform = (game) => {
     return `${game.platform} · ${game.source}`;
   }
   return game.platform || game.source || "Unknown platform";
+};
+
+const normalizeKey = (value) => {
+  if (!value) return "";
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 };
 
 const formatRating = (value) => {
@@ -185,6 +196,9 @@ const applyRating = (element, rating, matchTitle, matchElement) => {
     if (matchTitle) {
       matchElement.dataset.hidden = "false";
       matchElement.textContent = `Matched: ${matchTitle}`;
+    } else if (matchElement.dataset.showEmpty === "true" && formatted === "N/A") {
+      matchElement.dataset.hidden = "false";
+      matchElement.textContent = "Matched: (none)";
     } else {
       matchElement.dataset.hidden = "true";
       matchElement.textContent = "";
@@ -497,6 +511,9 @@ const ensureDetailNode = () => {
     close: node.querySelector("[data-detail-close]"),
     rating: node.querySelector("[data-detail-rating]"),
     ratingMatch: node.querySelector("[data-detail-rating-match]"),
+    ratingEditor: node.querySelector("[data-rating-editor]"),
+    ratingInput: node.querySelector("[data-rating-input]"),
+    ratingSuggestions: node.querySelector("[data-rating-suggestions]"),
     refine: node.querySelector("[data-detail-refine]"),
     statusControl: node.querySelector("[data-detail-status]"),
     finishCount: node.querySelector("[data-detail-finish-count]"),
@@ -530,6 +547,18 @@ const ensureDetailNode = () => {
       { finish_count: value },
       { message: `Updated finish count to ${value}.` }
     );
+  });
+  refs.ratingMatch?.addEventListener("click", () =>
+    openRatingEditor(state.selection)
+  );
+  refs.ratingInput?.addEventListener("input", (event) => {
+    requestRatingSuggestions(event.target.value);
+  });
+  refs.ratingInput?.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeRatingEditor();
+    }
   });
   detailState.node = node;
   detailState.refs = refs;
@@ -791,6 +820,118 @@ const confirmRefineDialog = async () => {
     cancelRefineDialog();
   }
 };
+
+const showRatingSuggestionMessage = (message) => {
+  const container = detailState.refs?.ratingSuggestions;
+  if (!container) return;
+  container.innerHTML = "";
+  const info = document.createElement("p");
+  info.className = "status";
+  info.textContent = message;
+  container.appendChild(info);
+};
+
+const applyRatingSuggestion = (match) => {
+  if (!state.selection || !match) return;
+  const normalizedGame = normalizeKey(state.selection.title);
+  const normalizedMatch = normalizeKey(match.title);
+  const matchTitle =
+    normalizedGame && normalizedMatch === normalizedGame ? null : match.title;
+  const updated = updateGameMetadata(
+    state.selection.__id,
+    { rating: match.score, rating_match_title: matchTitle },
+    { silent: true }
+  );
+  if (updated) {
+    openDetail(updated, { preserveSelection: true });
+  }
+  closeRatingEditor();
+  showStatus(`Rating matched to ${match.title}.`);
+};
+
+const renderRatingSuggestions = (matches = []) => {
+  const container = detailState.refs?.ratingSuggestions;
+  if (!container) return;
+  container.innerHTML = "";
+  if (!matches.length) {
+    showRatingSuggestionMessage("No rating matches found.");
+    return;
+  }
+  const fragment = document.createDocumentFragment();
+  matches.forEach((match) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "rating-suggestion";
+    const title = document.createElement("div");
+    title.textContent = match.title;
+    const score = document.createElement("div");
+    score.className = "rating-score";
+    score.textContent = `Score: ${Math.round(match.score)}%`;
+    button.appendChild(title);
+    button.appendChild(score);
+    button.addEventListener("click", () => applyRatingSuggestion(match));
+    fragment.appendChild(button);
+  });
+  container.appendChild(fragment);
+};
+
+const fetchRatingSuggestions = async (query) => {
+  const token = ++ratingSearchToken;
+  try {
+    const response = await fetch("/api/ratings/search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query }),
+    });
+    if (!response.ok) {
+      throw new Error(await parseApiError(response));
+    }
+    const data = await response.json();
+    if (token !== ratingSearchToken) return;
+    renderRatingSuggestions(data.suggestions ?? []);
+  } catch (error) {
+    if (token !== ratingSearchToken) return;
+    renderRatingSuggestions([]);
+    showStatus(error.message, "error");
+  }
+};
+
+const requestRatingSuggestions = (query) => {
+  const trimmed = (query || "").trim();
+  if (!trimmed) {
+    showRatingSuggestionMessage("Type to search the ratings list.");
+    return;
+  }
+  if (ratingSearchTimeout) {
+    clearTimeout(ratingSearchTimeout);
+  }
+  ratingSearchTimeout = setTimeout(() => {
+    fetchRatingSuggestions(trimmed);
+  }, 250);
+};
+
+const openRatingEditor = (game) => {
+  const { ratingEditor, ratingInput } = detailState.refs || {};
+  if (!game || !ratingEditor || !ratingInput) return;
+  ratingEditor.hidden = false;
+  ratingInput.value = game.rating_match_title || game.title || "";
+  ratingInput.focus();
+  ratingInput.select();
+  requestRatingSuggestions(ratingInput.value);
+};
+
+const closeRatingEditor = () => {
+  const { ratingEditor, ratingInput, ratingSuggestions } = detailState.refs || {};
+  if (!ratingEditor) return;
+  ratingEditor.hidden = true;
+  if (ratingInput) {
+    ratingInput.value = "";
+  }
+  if (ratingSuggestions) {
+    ratingSuggestions.innerHTML = "";
+  }
+};
+
 const openDetail = (
   game,
   { preserveSelection = false, scrollIntoView = false } = {}
@@ -810,6 +951,7 @@ const openDetail = (
   }
 
   const { refs, node } = detail;
+  closeRatingEditor();
   refs.title.textContent = game.title;
   refs.platform.textContent = formatPlatform(game);
   refs.description.textContent = game.description;
@@ -1195,6 +1337,8 @@ const saveProfile = async (path, { silent = false } = {}) => {
       record_id: game.record_id ?? null,
       status: game.status,
       finish_count: game.finish_count,
+      rating: game.rating ?? null,
+      rating_match_title: game.rating_match_title ?? null,
     })),
   };
   try {

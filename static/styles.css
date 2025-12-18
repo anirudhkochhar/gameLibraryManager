@@ -684,6 +684,62 @@ body.lightbox-open {
   opacity: 0.8;
 }
 
+.rating-match--editable {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  text-align: right;
+}
+
+.rating-match--editable:hover {
+  text-decoration: underline;
+}
+
+.rating-editor {
+  width: 220px;
+}
+
+.rating-editor input {
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(10, 12, 20, 0.8);
+  color: #f5f6ff;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.8rem;
+}
+
+.rating-suggestions {
+  margin-top: 0.35rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.rating-suggestion {
+  text-align: left;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  padding: 0.4rem 0.5rem;
+  color: #f4f6ff;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.rating-suggestion:hover {
+  border-color: rgba(138, 209, 255, 0.6);
+}
+
+.rating-suggestion .rating-score {
+  opacity: 0.8;
+  font-size: 0.7rem;
+}
+
 .rating-pill[data-hidden="true"],
 .rating-match[data-hidden="true"] {
   display: none;
