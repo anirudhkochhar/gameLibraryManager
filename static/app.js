@@ -26,6 +26,7 @@ const elements = {
   storeFilterSelect: document.getElementById("store-filter"),
   statusFilterSelect: document.getElementById("status-filter"),
   genreFilterSelect: document.getElementById("genre-filter"),
+  metadataFilterSelect: document.getElementById("metadata-filter"),
   selectionBar: document.getElementById("selection-bar"),
   selectionCount: document.getElementById("selection-count"),
   selectionStatus: document.getElementById("selection-status"),
@@ -61,6 +62,10 @@ const STATUS_FILTER_LABELS = {
 };
 const UNKNOWN_GENRE_VALUE = "__unknown";
 const UNKNOWN_GENRE_LABEL = "Unknown genre";
+const METADATA_FILTER_LABELS = {
+  missing_igdb: "Missing IGDB metadata",
+  rating_needs_review: "Rating needs review",
+};
 const BROKEN_IMAGE_URL =
   "data:image/svg+xml;utf8," +
   encodeURIComponent(
@@ -94,6 +99,9 @@ const normalizeGame = (game) => {
     status: sanitizeStatus(game.status),
     finish_count: clampFinishCount(finishValue),
     genres: Array.isArray(game.genres) ? game.genres.filter(Boolean) : [],
+    rating_match_title: game.rating_match_title ?? null,
+    igdb_match:
+      typeof game.igdb_match === "boolean" ? game.igdb_match : null,
   };
 };
 
@@ -125,6 +133,7 @@ const state = {
   storeFilter: "",
   statusFilter: "",
   genreFilter: "",
+  metadataFilter: "",
   selectedIds: new Set(),
   profilePath: null,
 };
@@ -1024,16 +1033,22 @@ const describeGenreFilter = (value) => {
   return value;
 };
 
+const describeMetadataFilter = (value) => {
+  if (!value) return null;
+  return METADATA_FILTER_LABELS[value] || null;
+};
+
 const buildFilterMessage = (
   count,
   query,
   storeFilterLabel,
   statusFilterValue,
-  genreFilterValue
+  genreFilterValue,
+  metadataFilterValue
 ) => {
   const activeFilters = [];
   if (query) {
-    activeFilters.push(`“${query}”`);
+    activeFilters.push(`"${query}"`);
   }
   if (storeFilterLabel) {
     activeFilters.push(storeFilterLabel);
@@ -1045,6 +1060,10 @@ const buildFilterMessage = (
   const genreLabel = describeGenreFilter(genreFilterValue);
   if (genreLabel) {
     activeFilters.push(genreLabel);
+  }
+  const metadataLabel = describeMetadataFilter(metadataFilterValue);
+  if (metadataLabel) {
+    activeFilters.push(metadataLabel);
   }
   if (!activeFilters.length) {
     return `Displaying ${count} games.`;
@@ -1058,6 +1077,7 @@ const applyFilter = ({ silentStatus = false } = {}) => {
   const storeFilter = (state.storeFilter || "").toLowerCase();
   const statusFilter = state.statusFilter || "";
   const genreFilter = state.genreFilter || "";
+  const metadataFilter = state.metadataFilter || "";
 
   state.filtered = state.games.filter((game) => {
     const haystack = `${game.title} ${game.platform ?? ""} ${
@@ -1079,7 +1099,22 @@ const applyFilter = ({ silentStatus = false } = {}) => {
       (genreFilter === UNKNOWN_GENRE_VALUE
         ? normalizedGenres.length === 0
         : normalizedGenres.includes(genreFilter.toLowerCase()));
-    return matchesQuery && matchesStore && matchesStatus && matchesGenre;
+    const igdbMatch = game.igdb_match === true;
+    const ratingNeedsReview = Boolean(game.rating_match_title);
+    const matchesMetadata =
+      !metadataFilter ||
+      (metadataFilter === "missing_igdb"
+        ? game.igdb_match === false
+        : metadataFilter === "rating_needs_review"
+        ? ratingNeedsReview
+        : true);
+    return (
+      matchesQuery &&
+      matchesStore &&
+      matchesStatus &&
+      matchesGenre &&
+      matchesMetadata
+    );
   });
 
   state.filtered = sortGames(state.filtered);
@@ -1090,7 +1125,8 @@ const applyFilter = ({ silentStatus = false } = {}) => {
     queryRaw,
     state.storeFilter,
     statusFilter,
-    genreFilter
+    genreFilter,
+    metadataFilter
   );
   if (!silentStatus) {
     showStatus(message);
@@ -1400,6 +1436,10 @@ elements.statusFilterSelect?.addEventListener("change", (event) => {
 });
 elements.genreFilterSelect?.addEventListener("change", (event) => {
   state.genreFilter = event.target.value || "";
+  applyFilter();
+});
+elements.metadataFilterSelect?.addEventListener("change", (event) => {
+  state.metadataFilter = event.target.value || "";
   applyFilter();
 });
 elements.selectionApplyButton?.addEventListener("click", applyBulkStatus);

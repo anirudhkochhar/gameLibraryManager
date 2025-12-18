@@ -451,6 +451,7 @@ class MetadataProvider:
                     source,
                     record_id,
                 )
+                game = game.copy(update={"igdb_match": True})
                 return self._apply_critic_rating(game)
             except MetadataLookupError:
                 game = self._empty_game(title, platform, source, record_id)
@@ -467,6 +468,7 @@ class MetadataProvider:
                 logger.warning("Falling back to placeholder metadata: %s", exc)
 
         game = self.offline_provider.build_game(title, platform, source)
+        game = game.copy(update={"igdb_match": False})
         game = self._apply_critic_rating(game)
         self._cache[cache_key] = game
         logger.debug(
@@ -528,6 +530,7 @@ class MetadataProvider:
             trailer_url=None,
             rating=None,
             rating_match_title=None,
+            igdb_match=False,
             gallery_urls=[],
             status="not_allocated",
             finish_count=0,
