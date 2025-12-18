@@ -184,6 +184,16 @@ const applyStatusLabel = (element, status) => {
   }
 };
 
+const updateCardStatus = (game) => {
+  if (!game) return;
+  const card = elements.grid.querySelector(`[data-id="${game.__id}"]`);
+  if (!card) return;
+  const pill = card.classList.contains("game-row")
+    ? card.querySelector(".row-meta .status-pill")
+    : card.querySelector(".card-meta .status-pill");
+  applyStatusLabel(pill, game.status);
+};
+
 const renderGenreTags = (container, genres = [], { limit = null } = {}) => {
   if (!container) return;
   container.innerHTML = "";
@@ -478,7 +488,17 @@ const ensureDetailNode = () => {
     const nextStatus = sanitizeStatus(event.target.value);
     if (!state.selection) return;
     const label = STATUS_LABEL_LOOKUP[nextStatus] || STATUS_LABEL_LOOKUP[DEFAULT_STATUS];
-    updateGameMetadata(state.selection.__id, { status: nextStatus }, { message: `Moved to ${label}.` });
+    const updated = updateGameMetadata(
+      state.selection.__id,
+      { status: nextStatus },
+      { silent: true, deferFilter: true }
+    );
+    if (state.statusFilter) {
+      applyFilter({ silentStatus: true });
+    } else {
+      updateCardStatus(updated);
+    }
+    showStatus(`Moved to ${label}.`);
   });
   refs.finishCount?.addEventListener("change", (event) => {
     if (!state.selection) return;
