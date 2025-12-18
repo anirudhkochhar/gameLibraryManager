@@ -23,6 +23,7 @@ const elements = {
   profileSaveButton: document.getElementById("profile-save"),
   profileDeleteButton: document.getElementById("profile-delete"),
   sortSelect: document.getElementById("sort-select"),
+  storeFilterSelect: document.getElementById("store-filter"),
   cacheClearButton: document.getElementById("cache-clear"),
   confirmDialog: document.getElementById("confirm-dialog"),
   confirmCancelButtons: document.querySelectorAll("[data-confirm-cancel]"),
@@ -41,6 +42,7 @@ const state = {
   selection: null,
   viewMode: "grid",
   sortMode: "alphabetical",
+  storeFilter: "",
   profilePath: null,
 };
 
@@ -124,6 +126,42 @@ const persistGameCache = () => {
   } catch (error) {
     console.warn("Failed to cache games", error);
   }
+};
+
+const updateStoreFilterOptions = () => {
+  const select = elements.storeFilterSelect;
+  if (!select) return;
+  const normalizedTarget = (state.storeFilter || "").toLowerCase();
+  const stores = Array.from(
+    new Set(
+      state.games
+        .map((game) => (game.source || "").trim())
+        .filter((value) => value.length)
+    )
+  ).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+  select.innerHTML = "";
+  const defaultOption = document.createElement("option");
+  defaultOption.value = "";
+  defaultOption.textContent = "All stores";
+  select.appendChild(defaultOption);
+  stores.forEach((store) => {
+    const option = document.createElement("option");
+    option.value = store;
+    option.textContent = store;
+    select.appendChild(option);
+  });
+  if (normalizedTarget) {
+    const matchIndex = stores.findIndex(
+      (store) => store.toLowerCase() === normalizedTarget
+    );
+    if (matchIndex === -1) {
+      state.storeFilter = "";
+    } else {
+      state.storeFilter = stores[matchIndex];
+    }
+  }
+  select.disabled = stores.length === 0;
+  select.value = state.storeFilter || "";
 };
 
 const ensureDetailNode = () => {
@@ -584,22 +622,32 @@ const sortGames = (games) => {
 
 const applyFilter = () => {
   const query = elements.searchInput.value.trim().toLowerCase();
-  if (!query) {
-    state.filtered = sortGames(state.games);
-    renderGrid(state.filtered);
-    showStatus(`Displaying ${state.filtered.length} games.`);
-    return;
-  }
+  const storeFilter = (state.storeFilter || "").toLowerCase();
 
   state.filtered = state.games.filter((game) => {
     const haystack = `${game.title} ${game.platform ?? ""} ${
       game.source ?? ""
     } ${game.description}`.toLowerCase();
-    return haystack.includes(query);
+    const matchesQuery = !query || haystack.includes(query);
+    const matchesStore =
+      !storeFilter || (game.source || "").toLowerCase() === storeFilter;
+    return matchesQuery && matchesStore;
   });
+
   state.filtered = sortGames(state.filtered);
   renderGrid(state.filtered);
-  showStatus(`Found ${state.filtered.length} result(s) for “${query}”.`);
+
+  let message = "";
+  if (!query && !storeFilter) {
+    message = `Displaying ${state.filtered.length} games.`;
+  } else if (query && storeFilter) {
+    message = `Found ${state.filtered.length} result(s) for “${query}” in ${state.storeFilter}.`;
+  } else if (query) {
+    message = `Found ${state.filtered.length} result(s) for “${query}”.`;
+  } else {
+    message = `Displaying ${state.filtered.length} games from ${state.storeFilter}.`;
+  }
+  showStatus(message);
 };
 
 const ingestGames = (games, { skipAutoSave = false, append = false } = {}) => {
@@ -611,6 +659,7 @@ const ingestGames = (games, { skipAutoSave = false, append = false } = {}) => {
   }
   state.selection = null;
   elements.searchInput.value = "";
+  updateStoreFilterOptions();
   applyFilter();
   closeDetail();
   persistGameCache();
@@ -882,6 +931,10 @@ elements.sortSelect?.addEventListener("change", (event) => {
   if (state.games.length) {
     applyFilter();
   }
+});
+elements.storeFilterSelect?.addEventListener("change", (event) => {
+  state.storeFilter = event.target.value || "";
+  applyFilter();
 });
 
 elements.manualForm?.addEventListener("submit", handleManualAdd);
