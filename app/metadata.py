@@ -135,6 +135,8 @@ class PlaceholderMetadataProvider:
             trailer_url=trailer_url,
             rating=rating,
             gallery_urls=gallery_urls,
+            status="not_allocated",
+            finish_count=0,
         )
 
 
@@ -266,6 +268,8 @@ class IgdbMetadataProvider:
             trailer_url=trailer_url or DEFAULT_TRAILER,
             rating=rating_value,
             gallery_urls=gallery_urls,
+            status="not_allocated",
+            finish_count=0,
         )
 
     @staticmethod

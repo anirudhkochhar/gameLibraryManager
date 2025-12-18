@@ -401,6 +401,32 @@ button:hover {
   color: #c7cbe0;
 }
 
+.detail-management {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.detail-management label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+  color: #b7bed6;
+  min-width: 160px;
+}
+
+.detail-management select,
+.detail-management input[type="number"] {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 0.5rem;
+  padding: 0.4rem 0.5rem;
+  color: #fff;
+  font-size: 0.95rem;
+}
+
 .detail-subgrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -597,6 +623,22 @@ body.lightbox-open {
 }
 
 .rating-pill[data-hidden="true"] {
+  display: none;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.15rem 0.65rem;
+  border: 1px solid rgba(138, 209, 255, 0.3);
+  color: #8ad1ff;
+  background: rgba(138, 209, 255, 0.12);
+  font-size: 0.8rem;
+  text-transform: capitalize;
+}
+
+.status-pill[data-hidden="true"] {
   display: none;
 }
 

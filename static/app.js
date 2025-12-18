@@ -24,6 +24,7 @@ const elements = {
   profileDeleteButton: document.getElementById("profile-delete"),
   sortSelect: document.getElementById("sort-select"),
   storeFilterSelect: document.getElementById("store-filter"),
+  statusFilterSelect: document.getElementById("status-filter"),
   cacheClearButton: document.getElementById("cache-clear"),
   confirmDialog: document.getElementById("confirm-dialog"),
   confirmCancelButtons: document.querySelectorAll("[data-confirm-cancel]"),
@@ -36,6 +37,50 @@ const elements = {
   searchResults: document.getElementById("search-results"),
 };
 
+const DEFAULT_STATUS = "not_allocated";
+const STATUS_OPTIONS = [
+  { value: "not_allocated", label: "Not allocated" },
+  { value: "backlog", label: "Backlog" },
+  { value: "playing", label: "Playing" },
+  { value: "finished", label: "Finished" },
+  { value: "replaying", label: "Replaying" },
+];
+const STATUS_LABEL_LOOKUP = STATUS_OPTIONS.reduce((acc, option) => {
+  acc[option.value] = option.label;
+  return acc;
+}, {});
+const STATUS_FILTER_LABELS = {
+  ...STATUS_LABEL_LOOKUP,
+  without_not_allocated: "Everything but Not allocated",
+};
+
+const sanitizeStatus = (value) => {
+  if (!value) return DEFAULT_STATUS;
+  const normalized = value.toString().toLowerCase();
+  return STATUS_OPTIONS.some((option) => option.value === normalized)
+    ? normalized
+    : DEFAULT_STATUS;
+};
+
+const clampFinishCount = (value) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric < 0) {
+    return 0;
+  }
+  return Math.floor(numeric);
+};
+
+const normalizeGame = (game) => {
+  const finishValue =
+    game.finish_count ?? game.finishCount ?? game.finish ?? 0;
+  return {
+    ...game,
+    gallery_urls: game.gallery_urls ?? [],
+    status: sanitizeStatus(game.status),
+    finish_count: clampFinishCount(finishValue),
+  };
+};
+
 const state = {
   games: [],
   filtered: [],
@@ -43,6 +88,7 @@ const state = {
   viewMode: "grid",
   sortMode: "alphabetical",
   storeFilter: "",
+  statusFilter: "",
   profilePath: null,
 };
 
@@ -79,6 +125,11 @@ const formatRating = (value) => {
   return `${Math.round(value)}%`;
 };
 
+const formatStatusLabel = (value) => {
+  const status = sanitizeStatus(value);
+  return STATUS_LABEL_LOOKUP[status] || STATUS_LABEL_LOOKUP[DEFAULT_STATUS];
+};
+
 const applyRating = (element, rating) => {
   if (!element) return;
   const formatted = formatRating(rating);
@@ -88,6 +139,18 @@ const applyRating = (element, rating) => {
   } else {
     element.dataset.hidden = "false";
     element.textContent = formatted;
+  }
+};
+
+const applyStatusLabel = (element, status) => {
+  if (!element) return;
+  const label = formatStatusLabel(status);
+  if (!label) {
+    element.dataset.hidden = "true";
+    element.textContent = "";
+  } else {
+    element.dataset.hidden = "false";
+    element.textContent = label;
   }
 };
 
@@ -106,11 +169,13 @@ const hideLoadingIndicator = () => {
 };
 
 const serializeGames = (games) =>
-  games.map((game) => ({
-    ...game,
-    gallery_urls: game.gallery_urls ?? [],
-    __id: `game-${Date.now()}-${gameIdCounter++}`,
-  }));
+  games.map((game) => {
+    const normalized = normalizeGame(game);
+    return {
+      ...normalized,
+      __id: `game-${Date.now()}-${gameIdCounter++}`,
+    };
+  });
 
 const persistGameCache = () => {
   try {
@@ -164,6 +229,27 @@ const updateStoreFilterOptions = () => {
   select.value = state.storeFilter || "";
 };
 
+const updateGameMetadata = (gameId, updates, { message } = {}) => {
+  if (!gameId) return null;
+  const index = state.games.findIndex((game) => game.__id === gameId);
+  if (index === -1) return null;
+  const merged = normalizeGame({ ...state.games[index], ...updates });
+  state.games[index] = merged;
+  state.games = [...state.games];
+  if (state.selection?.__id === gameId) {
+    state.selection = merged;
+  }
+  updateStoreFilterOptions();
+  const shouldSilence = Boolean(message);
+  applyFilter({ silentStatus: shouldSilence });
+  persistGameCache();
+  autoSaveProfile();
+  if (message) {
+    showStatus(message);
+  }
+  return merged;
+};
+
 const ensureDetailNode = () => {
   if (detailState.node) {
     return detailState;
@@ -183,9 +269,35 @@ const ensureDetailNode = () => {
     close: node.querySelector("[data-detail-close]"),
     rating: node.querySelector("[data-detail-rating]"),
     refine: node.querySelector("[data-detail-refine]"),
+    statusControl: node.querySelector("[data-detail-status]"),
+    finishCount: node.querySelector("[data-detail-finish-count]"),
   };
   refs.close?.addEventListener("click", () => closeDetail());
   refs.refine?.addEventListener("click", () => openRefineDialog(state.selection));
+  if (refs.statusControl && !refs.statusControl.options.length) {
+    STATUS_OPTIONS.forEach((option) => {
+      const nodeOption = document.createElement("option");
+      nodeOption.value = option.value;
+      nodeOption.textContent = option.label;
+      refs.statusControl.appendChild(nodeOption);
+    });
+  }
+  refs.statusControl?.addEventListener("change", (event) => {
+    const nextStatus = sanitizeStatus(event.target.value);
+    if (!state.selection) return;
+    const label = STATUS_LABEL_LOOKUP[nextStatus] || STATUS_LABEL_LOOKUP[DEFAULT_STATUS];
+    updateGameMetadata(state.selection.__id, { status: nextStatus }, { message: `Moved to ${label}.` });
+  });
+  refs.finishCount?.addEventListener("change", (event) => {
+    if (!state.selection) return;
+    const value = clampFinishCount(event.target.value);
+    event.target.value = value;
+    updateGameMetadata(
+      state.selection.__id,
+      { finish_count: value },
+      { message: `Updated finish count to ${value}.` }
+    );
+  });
   detailState.node = node;
   detailState.refs = refs;
   return detailState;
@@ -274,8 +386,10 @@ const deleteGameById = (gameId) => {
   if (state.selection?.__id === gameId) {
     closeDetail();
   }
+  updateStoreFilterOptions();
   applyFilter();
   showStatus(`${removed.title} removed from the library.`);
+  persistGameCache();
   autoSaveProfile();
 };
 
@@ -425,6 +539,7 @@ const confirmRefineDialog = async () => {
 	  state.games[index] = serialized;
 	  state.games = [...state.games];
 	  state.selection = serialized;
+	  updateStoreFilterOptions();
 	  applyFilter();
 	  persistGameCache();
 	  openDetail(serialized, { preserveSelection: true });
@@ -461,6 +576,12 @@ const openDetail = (
   refs.description.textContent = game.description;
   refs.cover.src = game.cover_url;
   refs.cover.alt = `${game.title} cover art`;
+  if (refs.statusControl) {
+    refs.statusControl.value = sanitizeStatus(game.status);
+  }
+  if (refs.finishCount) {
+    refs.finishCount.value = clampFinishCount(game.finish_count);
+  }
   detailState.galleryUrls = game.gallery_urls || [];
   detailState.activeIndex = null;
   renderGallery(refs.gallery, detailState.galleryUrls);
@@ -506,6 +627,7 @@ const createCard = (game) => {
     card.querySelector(".info .title").textContent = game.title;
     card.querySelector(".info .description").textContent = game.description;
     applyRating(card.querySelector(".row-meta .rating-pill"), game.rating);
+    applyStatusLabel(card.querySelector(".row-meta .status-pill"), game.status);
     const store = card.querySelector(".row-meta .store");
     store.textContent =
       game.source || game.platform || "";
@@ -516,6 +638,7 @@ const createCard = (game) => {
     card.querySelector(".platform").textContent = formatPlatform(game);
     card.querySelector(".title").textContent = game.title;
     card.querySelector(".description").textContent = game.description;
+    applyStatusLabel(card.querySelector(".card-meta .status-pill"), game.status);
     applyRating(card.querySelector(".card-meta .rating-pill"), game.rating);
   }
 
@@ -627,9 +750,34 @@ const sortGames = (games) => {
   return sorted;
 };
 
-const applyFilter = () => {
-  const query = elements.searchInput.value.trim().toLowerCase();
+const describeStatusFilter = (value) => {
+  if (!value) return null;
+  return STATUS_FILTER_LABELS[value] || STATUS_LABEL_LOOKUP[value] || null;
+};
+
+const buildFilterMessage = (count, query, storeFilterLabel, statusFilterValue) => {
+  const activeFilters = [];
+  if (query) {
+    activeFilters.push(`“${query}”`);
+  }
+  if (storeFilterLabel) {
+    activeFilters.push(storeFilterLabel);
+  }
+  const statusLabel = describeStatusFilter(statusFilterValue);
+  if (statusLabel) {
+    activeFilters.push(statusLabel);
+  }
+  if (!activeFilters.length) {
+    return `Displaying ${count} games.`;
+  }
+  return `Showing ${count} games (${activeFilters.join(" · ")}).`;
+};
+
+const applyFilter = ({ silentStatus = false } = {}) => {
+  const queryRaw = elements.searchInput.value.trim();
+  const query = queryRaw.toLowerCase();
   const storeFilter = (state.storeFilter || "").toLowerCase();
+  const statusFilter = state.statusFilter || "";
 
   state.filtered = state.games.filter((game) => {
     const haystack = `${game.title} ${game.platform ?? ""} ${
@@ -638,23 +786,28 @@ const applyFilter = () => {
     const matchesQuery = !query || haystack.includes(query);
     const matchesStore =
       !storeFilter || (game.source || "").toLowerCase() === storeFilter;
-    return matchesQuery && matchesStore;
+    const gameStatus = sanitizeStatus(game.status);
+    const matchesStatus =
+      !statusFilter ||
+      (statusFilter === "without_not_allocated"
+        ? gameStatus !== DEFAULT_STATUS
+        : gameStatus === statusFilter);
+    return matchesQuery && matchesStore && matchesStatus;
   });
 
   state.filtered = sortGames(state.filtered);
   renderGrid(state.filtered);
 
-  let message = "";
-  if (!query && !storeFilter) {
-    message = `Displaying ${state.filtered.length} games.`;
-  } else if (query && storeFilter) {
-    message = `Found ${state.filtered.length} result(s) for “${query}” in ${state.storeFilter}.`;
-  } else if (query) {
-    message = `Found ${state.filtered.length} result(s) for “${query}”.`;
-  } else {
-    message = `Displaying ${state.filtered.length} games from ${state.storeFilter}.`;
+  const message = buildFilterMessage(
+    state.filtered.length,
+    queryRaw,
+    state.storeFilter,
+    statusFilter
+  );
+  if (!silentStatus) {
+    showStatus(message);
   }
-  showStatus(message);
+  return message;
 };
 
 const ingestGames = (games, { skipAutoSave = false, append = false } = {}) => {
@@ -712,6 +865,8 @@ const saveProfile = async (path, { silent = false } = {}) => {
       platform: game.platform,
       source: game.source,
       record_id: game.record_id ?? null,
+      status: game.status,
+      finish_count: game.finish_count,
     })),
   };
   try {
@@ -823,6 +978,7 @@ const handleManualAdd = async (event) => {
     if (elements.manualForm) {
       elements.manualForm.reset();
     }
+    updateStoreFilterOptions();
     applyFilter();
     persistGameCache();
     showStatus(`${gameWithId.title} added to your library.`);
@@ -945,6 +1101,10 @@ elements.sortSelect?.addEventListener("change", (event) => {
 });
 elements.storeFilterSelect?.addEventListener("change", (event) => {
   state.storeFilter = event.target.value || "";
+  applyFilter();
+});
+elements.statusFilterSelect?.addEventListener("change", (event) => {
+  state.statusFilter = event.target.value || "";
   applyFilter();
 });
 

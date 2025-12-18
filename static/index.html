@@ -107,6 +107,18 @@
             <option value="">All stores</option>
           </select>
         </div>
+        <div class="filter-controls">
+          <label for="status-filter">Filter library status</label>
+          <select id="status-filter">
+            <option value="">All statuses</option>
+            <option value="not_allocated">Not allocated</option>
+            <option value="backlog">Backlog</option>
+            <option value="playing">Playing</option>
+            <option value="finished">Finished</option>
+            <option value="replaying">Replaying</option>
+            <option value="without_not_allocated">Everything but Not allocated</option>
+          </select>
+        </div>
         <p id="status" class="status"></p>
       </section>
 
@@ -126,6 +138,7 @@
           <div class="card-meta">
             <p class="platform"></p>
             <div class="card-meta-actions">
+              <span class="status-pill" aria-label="Library status"></span>
               <span class="rating-pill" aria-label="Rating"></span>
               <button
                 type="button"
@@ -153,6 +166,7 @@
           <p class="description"></p>
         </div>
         <div class="row-meta">
+          <p class="status-pill" aria-label="Library status"></p>
           <p class="rating-pill" aria-label="Rating"></p>
           <p class="store"></p>
           <button
@@ -191,6 +205,22 @@
         <div class="detail-hero">
           <div class="detail-text">
             <p data-detail-description></p>
+            <div class="detail-management">
+              <label>
+                <span>Library status</span>
+                <select data-detail-status></select>
+              </label>
+              <label>
+                <span>Times finished</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  data-detail-finish-count
+                  value="0"
+                />
+              </label>
+            </div>
           </div>
           <img data-detail-cover alt="Game cover" />
         </div>
