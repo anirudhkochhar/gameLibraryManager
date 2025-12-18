@@ -67,6 +67,12 @@ class ProfileSaveRequest(ProfileDirectory):
     games: list[ProfileEntry]
 
 
+class ManualGameRequest(BaseModel):
+    title: str
+    platform: Optional[str] = None
+    source: Optional[str] = None
+
+
 @api_router.get("/health")
 async def healthcheck() -> JSONResponse:
     return JSONResponse({"status": "ok"})
@@ -136,6 +142,14 @@ async def upload_games(file: UploadFile = File(...)) -> GameCollection:
             status_code=400, detail="No games were detected. Check the file format."
         )
     return GameCollection(games=games)
+
+
+@api_router.post("/games/create", response_model=Game)
+async def create_game(payload: ManualGameRequest) -> Game:
+    title = payload.title.strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="Title is required.")
+    return metadata_provider.build_game(title, payload.platform, payload.source)
 
 
 def _profile_file(path: str) -> Path:

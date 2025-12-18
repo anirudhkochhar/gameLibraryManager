@@ -66,6 +66,7 @@ The metadata layer is handled by `app/metadata.py`. With IGDB credentials presen
 * Search-as-you-type filters across title, platform/store and description.
 * Cards expand inline—click one to open a spotlight pane right under the tile with cover art, IGDB screenshots, trailer, IGDB rating and a “Back to grid” toggle. Switch between the dense list view or masonry grid via the layout pills above the search bar.
 * Profiles persist the names/platforms you uploaded—pick any directory (e.g. on an external drive) and use the Load/Save buttons. The browser remembers that directory and automatically reloads the profile on your next visit.
+* Quickly curate: add games manually with the inline form (just a title is required) or remove individual entries using the × action on each card/row.
 * Gallery thumbnails deep-link to the IGDB CDN so you can inspect the original full-resolution renders.
 
 Because everything is static assets under `static/`, the FastAPI app simply mounts the directory. Swap it for any SPA framework later if you need routing, authentication or data caching.

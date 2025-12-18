@@ -14,9 +14,16 @@ const elements = {
   listTemplate: document.getElementById("game-row-template"),
   viewButtons: document.querySelectorAll("[data-view-mode]"),
   loadingIndicator: document.getElementById("loading-indicator"),
+  manualForm: document.getElementById("manual-form"),
+  manualTitleInput: document.getElementById("manual-title"),
+  manualPlatformInput: document.getElementById("manual-platform"),
+  manualSourceInput: document.getElementById("manual-source"),
   profilePathInput: document.getElementById("profile-path"),
   profileLoadButton: document.getElementById("profile-load"),
   profileSaveButton: document.getElementById("profile-save"),
+  confirmDialog: document.getElementById("confirm-dialog"),
+  confirmCancelButtons: document.querySelectorAll("[data-confirm-cancel]"),
+  confirmConfirmButton: document.querySelector("[data-confirm-confirm]"),
 };
 
 const state = {
@@ -39,6 +46,7 @@ const BATCH_SIZE = 24;
 let renderGeneration = 0;
 let pendingDetailId = null;
 const PROFILE_STORAGE_KEY = "glProfilePath";
+let pendingDeleteId = null;
 
 const formatPlatform = (game) => {
   if (!game.platform && !game.source) {
@@ -186,6 +194,40 @@ const closeDetail = (clearSelection = true) => {
   }
 };
 
+const deleteGameById = (gameId) => {
+  const index = state.games.findIndex((game) => game.__id === gameId);
+  if (index === -1) {
+    return;
+  }
+  const [removed] = state.games.splice(index, 1);
+  state.games = [...state.games];
+  if (state.selection?.__id === gameId) {
+    closeDetail();
+  }
+  applyFilter();
+  showStatus(`${removed.title} removed from the library.`);
+  autoSaveProfile();
+};
+
+const requestDeleteGame = (gameId) => {
+  pendingDeleteId = gameId;
+  if (elements.confirmDialog) {
+    elements.confirmDialog.hidden = false;
+  }
+};
+
+const cancelDeleteGame = () => {
+  pendingDeleteId = null;
+  if (elements.confirmDialog) {
+    elements.confirmDialog.hidden = true;
+  }
+};
+
+const confirmDeleteGame = () => {
+  if (!pendingDeleteId) return;
+  deleteGameById(pendingDeleteId);
+  cancelDeleteGame();
+};
 const openDetail = (
   game,
   { preserveSelection = false, scrollIntoView = false } = {}
@@ -255,7 +297,8 @@ const createCard = (game) => {
     card.querySelector(".info .title").textContent = game.title;
     card.querySelector(".info .description").textContent = game.description;
     applyRating(card.querySelector(".row-meta .rating-pill"), game.rating);
-    card.querySelector(".row-meta .store").textContent =
+    const store = card.querySelector(".row-meta .store");
+    store.textContent =
       game.source || game.platform || "";
   } else {
     const cover = card.querySelector("img.cover");
@@ -266,6 +309,12 @@ const createCard = (game) => {
     card.querySelector(".description").textContent = game.description;
     applyRating(card.querySelector(".card-meta .rating-pill"), game.rating);
   }
+
+  const deleteBtn = card.querySelector(".delete-game");
+  deleteBtn?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    requestDeleteGame(game.__id);
+  });
 
   card.addEventListener("click", () => openDetail(game, { scrollIntoView: true }));
   card.addEventListener("keypress", (event) => {
@@ -464,6 +513,42 @@ const autoSaveProfile = () => {
   );
 };
 
+const handleManualAdd = async (event) => {
+  event.preventDefault();
+  const title = elements.manualTitleInput?.value.trim();
+  if (!title) {
+    showStatus("Enter a title before adding.", "error");
+    return;
+  }
+  const payload = {
+    title,
+    platform: elements.manualPlatformInput?.value.trim() || undefined,
+    source: elements.manualSourceInput?.value.trim() || undefined,
+  };
+  showStatus("Adding game…");
+  try {
+    const response = await fetch("/api/games/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+      throw new Error(await parseApiError(response));
+    }
+    const game = await response.json();
+    const [gameWithId] = serializeGames([game]);
+    state.games = [gameWithId, ...state.games];
+    if (elements.manualForm) {
+      elements.manualForm.reset();
+    }
+    applyFilter();
+    showStatus(`${gameWithId.title} added to your library.`);
+    autoSaveProfile();
+  } catch (error) {
+    showStatus(error.message, "error");
+  }
+};
+
 const setViewMode = (mode) => {
   if (state.viewMode === mode) return;
   state.viewMode = mode;
@@ -565,6 +650,7 @@ elements.viewButtons?.forEach((button) => {
   button.addEventListener("click", () => setViewMode(button.dataset.viewMode));
 });
 
+elements.manualForm?.addEventListener("submit", handleManualAdd);
 elements.profileLoadButton?.addEventListener("click", () => {
   const path = getProfilePathInput();
   if (!path) {
@@ -598,3 +684,8 @@ const bootstrapProfile = () => {
 
 // Wait for user interaction (upload or sample) before populating the grid.
 bootstrapProfile();
+
+elements.confirmCancelButtons?.forEach((button) => {
+  button.addEventListener("click", cancelDeleteGame);
+});
+elements.confirmConfirmButton?.addEventListener("click", confirmDeleteGame);
