@@ -13,6 +13,10 @@ const elements = {
   lightboxFullscreen: document.querySelector("[data-overlay-fullscreen]"),
   listTemplate: document.getElementById("game-row-template"),
   viewButtons: document.querySelectorAll("[data-view-mode]"),
+  loadingIndicator: document.getElementById("loading-indicator"),
+  profilePathInput: document.getElementById("profile-path"),
+  profileLoadButton: document.getElementById("profile-load"),
+  profileSaveButton: document.getElementById("profile-save"),
 };
 
 const state = {
@@ -20,6 +24,7 @@ const state = {
   filtered: [],
   selection: null,
   viewMode: "grid",
+  profilePath: null,
 };
 
 const detailState = {
@@ -33,6 +38,7 @@ let gameIdCounter = 0;
 const BATCH_SIZE = 24;
 let renderGeneration = 0;
 let pendingDetailId = null;
+const PROFILE_STORAGE_KEY = "glProfilePath";
 
 const formatPlatform = (game) => {
   if (!game.platform && !game.source) {
@@ -354,12 +360,15 @@ const applyFilter = () => {
   showStatus(`Found ${state.filtered.length} result(s) for “${query}”.`);
 };
 
-const ingestGames = (games) => {
+const ingestGames = (games, { skipAutoSave = false } = {}) => {
   state.games = serializeGames(games);
   state.selection = null;
   elements.searchInput.value = "";
   applyFilter();
   closeDetail();
+  if (!skipAutoSave) {
+    autoSaveProfile();
+  }
 };
 
 const parseApiError = async (response) => {
@@ -371,14 +380,100 @@ const parseApiError = async (response) => {
   }
 };
 
+const getProfilePathInput = () => elements.profilePathInput?.value.trim() || "";
+
+const persistProfilePath = (path) => {
+  state.profilePath = path;
+  if (elements.profilePathInput) {
+    elements.profilePathInput.value = path;
+  }
+  if (path) {
+    try {
+      localStorage.setItem(PROFILE_STORAGE_KEY, path);
+    } catch (error) {
+      console.warn("Unable to persist profile path", error);
+    }
+  }
+};
+
+const saveProfile = async (path, { silent = false } = {}) => {
+  if (!path) throw new Error("Profile directory is required.");
+  if (!state.games.length) throw new Error("No games to save.");
+  const payload = {
+    directory: path,
+    games: state.games.map((game) => ({
+      title: game.title,
+      platform: game.platform,
+      source: game.source,
+    })),
+  };
+  try {
+    if (!silent) {
+      showStatus("Saving profile…");
+    }
+    const response = await fetch("/api/profile/save", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+      throw new Error(await parseApiError(response));
+    }
+    persistProfilePath(path);
+    if (!silent) {
+      showStatus("Profile saved.");
+    }
+  } catch (error) {
+    if (!silent) {
+      showStatus(error.message, "error");
+    }
+    throw error;
+  }
+};
+
+const loadProfile = async (path) => {
+  if (!path) {
+    showStatus("Enter a profile directory.", "error");
+    return;
+  }
+  showStatus("Loading profile…");
+  try {
+    const response = await fetch("/api/profile/load", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ directory: path }),
+    });
+    if (!response.ok) {
+      throw new Error(await parseApiError(response));
+    }
+    const data = await response.json();
+    persistProfilePath(path);
+    ingestGames(data.games ?? [], { skipAutoSave: true });
+    showStatus(`Profile loaded from ${path}.`);
+  } catch (error) {
+    showStatus(error.message, "error");
+  }
+};
+
+const autoSaveProfile = () => {
+  if (!state.profilePath || !state.games.length) {
+    return;
+  }
+  saveProfile(state.profilePath, { silent: true }).catch((error) =>
+    console.warn("Auto profile save failed", error)
+  );
+};
+
 const setViewMode = (mode) => {
   if (state.viewMode === mode) return;
   state.viewMode = mode;
   elements.viewButtons?.forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.viewMode === mode);
   });
-  const source =
-    state.filtered.length || !state.games.length ? state.filtered : state.games;
+  const source = state.filtered.length ? state.filtered : state.games;
+  if (!source.length) {
+    return;
+  }
   renderGrid([...source]);
 };
 
@@ -470,4 +565,36 @@ elements.viewButtons?.forEach((button) => {
   button.addEventListener("click", () => setViewMode(button.dataset.viewMode));
 });
 
+elements.profileLoadButton?.addEventListener("click", () => {
+  const path = getProfilePathInput();
+  if (!path) {
+    showStatus("Enter a profile directory.", "error");
+    return;
+  }
+  loadProfile(path);
+});
+
+elements.profileSaveButton?.addEventListener("click", () => {
+  const path = getProfilePathInput() || state.profilePath;
+  if (!path) {
+    showStatus("Enter a profile directory before saving.", "error");
+    return;
+  }
+  saveProfile(path).catch(() => {});
+});
+
+const bootstrapProfile = () => {
+  let stored = null;
+  try {
+    stored = localStorage.getItem(PROFILE_STORAGE_KEY);
+  } catch {
+    stored = null;
+  }
+  if (stored) {
+    persistProfilePath(stored);
+    loadProfile(stored);
+  }
+};
+
 // Wait for user interaction (upload or sample) before populating the grid.
+bootstrapProfile();

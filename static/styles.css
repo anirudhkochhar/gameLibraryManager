@@ -122,6 +122,34 @@ button:hover {
   gap: 1rem;
 }
 
+.profile-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-end;
+}
+
+.profile-path {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  flex: 1;
+  min-width: 240px;
+}
+
+.profile-path input {
+  padding: 0.7rem 1rem;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.05);
+  color: inherit;
+}
+
+.profile-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
 .view-toggle {
   display: inline-flex;
   align-self: flex-start;

@@ -55,6 +55,8 @@ You can use `samples/sample-library.txt` as a template.
 | `POST /api/games/upload` | Multipart form upload (`file` field). Returns an array of enriched `Game` objects. |
 | `GET /api/games/sample` | Quick starter library using the offline metadata catalog. |
 | `GET /api/health` | Liveness probe for deployment environments. |
+| `POST /api/profile/save` | Persist the current library (titles/platforms) to a user-selected folder. |
+| `POST /api/profile/load` | Rebuild a library from a previously saved profile. |
 
 The metadata layer is handled by `app/metadata.py`. With IGDB credentials present it hydrates each entry using IGDB's API, and if credentials are missing or the lookup fails it falls back to deterministic placeholder assets so the grid always renders.
 
@@ -63,6 +65,7 @@ The metadata layer is handled by `app/metadata.py`. With IGDB credentials presen
 * Upload text exports directly from the hero card or reuse the sample data.
 * Search-as-you-type filters across title, platform/store and description.
 * Cards expand inline—click one to open a spotlight pane right under the tile with cover art, IGDB screenshots, trailer, IGDB rating and a “Back to grid” toggle. Switch between the dense list view or masonry grid via the layout pills above the search bar.
+* Profiles persist the names/platforms you uploaded—pick any directory (e.g. on an external drive) and use the Load/Save buttons. The browser remembers that directory and automatically reloads the profile on your next visit.
 * Gallery thumbnails deep-link to the IGDB CDN so you can inspect the original full-resolution renders.
 
 Because everything is static assets under `static/`, the FastAPI app simply mounts the directory. Swap it for any SPA framework later if you need routing, authentication or data caching.

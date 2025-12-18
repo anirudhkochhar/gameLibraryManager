@@ -2,22 +2,17 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from pathlib import Path
 from typing import Iterable, Optional, Tuple
 
 from dotenv import load_dotenv
-from fastapi import (
-    APIRouter,
-    FastAPI,
-    File,
-    HTTPException,
-    UploadFile,
-    status,
-)
+from fastapi import APIRouter, FastAPI, File, HTTPException, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 
 from .metadata import MetadataProvider
 from .models import Game, GameCollection
@@ -55,6 +50,21 @@ app.add_middleware(
 
 api_router = APIRouter(prefix="/api")
 metadata_provider = MetadataProvider()
+PROFILE_FILENAME = "profile.json"
+
+
+class ProfileDirectory(BaseModel):
+    directory: str
+
+
+class ProfileEntry(BaseModel):
+    title: str
+    platform: Optional[str] = None
+    source: Optional[str] = None
+
+
+class ProfileSaveRequest(ProfileDirectory):
+    games: list[ProfileEntry]
 
 
 @api_router.get("/health")
@@ -125,6 +135,49 @@ async def upload_games(file: UploadFile = File(...)) -> GameCollection:
         raise HTTPException(
             status_code=400, detail="No games were detected. Check the file format."
         )
+    return GameCollection(games=games)
+
+
+def _profile_file(path: str) -> Path:
+    directory = Path(path).expanduser()
+    directory.mkdir(parents=True, exist_ok=True)
+    return directory / PROFILE_FILENAME
+
+
+@api_router.post("/profile/save")
+async def save_profile(payload: ProfileSaveRequest) -> JSONResponse:
+    file_path = _profile_file(payload.directory)
+    entries = [
+        {"title": entry.title, "platform": entry.platform, "source": entry.source}
+        for entry in payload.games
+    ]
+    file_path.write_text(json.dumps(entries, indent=2), encoding="utf-8")
+    return JSONResponse({"path": str(file_path)})
+
+
+@api_router.post("/profile/load", response_model=GameCollection)
+async def load_profile(payload: ProfileDirectory) -> GameCollection:
+    file_path = _profile_file(payload.directory)
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="Profile not found.")
+    try:
+        entries = json.loads(file_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise HTTPException(
+            status_code=400, detail="Profile file is invalid JSON."
+        ) from exc
+    games: list[Game] = []
+    for entry in entries:
+        title = entry.get("title")
+        if not title:
+            continue
+        games.append(
+            metadata_provider.build_game(
+                title, entry.get("platform"), entry.get("source")
+            )
+        )
+    if not games:
+        raise HTTPException(status_code=400, detail="Profile contains no games.")
     return GameCollection(games=games)
 
 
