@@ -709,6 +709,12 @@ body.lightbox-open {
   cursor: pointer;
 }
 
+.rating-verify--clear {
+  border-color: rgba(255, 138, 138, 0.5);
+  background: rgba(255, 138, 138, 0.12);
+  color: #ffdada;
+}
+
 .rating-verify[data-verified="true"] {
   border-color: rgba(99, 219, 190, 0.7);
   background: rgba(99, 219, 190, 0.2);

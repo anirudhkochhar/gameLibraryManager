@@ -220,6 +220,17 @@ const applyRatingVerifyState = (element, game) => {
   element.hidden = !hasMatch;
 };
 
+const applyRatingClearState = (element, game) => {
+  if (!element) return;
+  const isVerified = Boolean(game.rating_verified);
+  const ratingMissing =
+    game.rating == null || !Number.isFinite(Number(game.rating));
+  const hasImperfectMatch = Boolean(game.rating_match_title);
+  const shouldShow = !isVerified && (ratingMissing || hasImperfectMatch);
+  element.disabled = !shouldShow;
+  element.hidden = !shouldShow;
+};
+
 const applyStatusLabel = (element, status) => {
   if (!element) return;
   const label = formatStatusLabel(status);
@@ -526,6 +537,7 @@ const ensureDetailNode = () => {
     rating: node.querySelector("[data-detail-rating]"),
     ratingMatch: node.querySelector("[data-detail-rating-match]"),
     ratingVerify: node.querySelector("[data-detail-rating-verify]"),
+    ratingClear: node.querySelector("[data-detail-rating-clear]"),
     ratingEditor: node.querySelector("[data-rating-editor]"),
     ratingInput: node.querySelector("[data-rating-input]"),
     ratingSuggestions: node.querySelector("[data-rating-suggestions]"),
@@ -580,6 +592,24 @@ const ensureDetailNode = () => {
       openDetail(updated, { preserveSelection: true });
     }
     showStatus("Rating match accepted.");
+  });
+  refs.ratingClear?.addEventListener("click", () => {
+    if (!state.selection) return;
+    const updated = updateGameMetadata(
+      state.selection.__id,
+      {
+        rating: 0,
+        rating_match_title: null,
+        rating_source_csv: "manual",
+        rating_verified: true,
+        rating_manual: true,
+      },
+      { silent: true }
+    );
+    if (updated) {
+      openDetail(updated, { preserveSelection: true });
+    }
+    showStatus("Rating set to 0.");
   });
   refs.ratingInput?.addEventListener("input", (event) => {
     requestRatingSuggestions(event.target.value);
@@ -1061,6 +1091,7 @@ const openDetail = (
   refs.cover.src = resolveImageUrl(game.cover_url);
   refs.cover.alt = `${game.title} cover art`;
   applyRatingVerifyState(refs.ratingVerify, game);
+  applyRatingClearState(refs.ratingClear, game);
   if (refs.statusControl) {
     refs.statusControl.value = sanitizeStatus(game.status);
   }
@@ -1129,6 +1160,10 @@ const createCard = (game) => {
       card.querySelector(".row-meta [data-rating-verify]"),
       game
     );
+    applyRatingClearState(
+      card.querySelector(".row-meta [data-rating-clear]"),
+      game
+    );
     applyStatusLabel(card.querySelector(".row-meta .status-pill"), game.status);
     renderGenreTags(
       card.querySelector(".info .genre-tags"),
@@ -1155,6 +1190,10 @@ const createCard = (game) => {
     );
     applyRatingVerifyState(
       card.querySelector(".card-meta [data-rating-verify]"),
+      game
+    );
+    applyRatingClearState(
+      card.querySelector(".card-meta [data-rating-clear]"),
       game
     );
     renderGenreTags(card.querySelector(".genre-tags"), game.genres, { limit: 3 });
@@ -1187,6 +1226,28 @@ const createCard = (game) => {
         openDetail(updated, { preserveSelection: true });
       }
       showStatus("Rating match accepted.");
+    });
+  }
+
+  const clearBtn = card.querySelector("[data-rating-clear]");
+  if (clearBtn) {
+    clearBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const updated = updateGameMetadata(
+        game.__id,
+        {
+          rating: 0,
+          rating_match_title: null,
+          rating_source_csv: "manual",
+          rating_verified: true,
+          rating_manual: true,
+        },
+        { silent: true }
+      );
+      if (updated) {
+        openDetail(updated, { preserveSelection: true });
+      }
+      showStatus("Rating set to 0.");
     });
   }
 
