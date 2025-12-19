@@ -697,6 +697,29 @@ body.lightbox-open {
   text-decoration: underline;
 }
 
+.rating-verify {
+  align-self: flex-end;
+  border: 1px solid rgba(138, 209, 255, 0.4);
+  background: rgba(138, 209, 255, 0.12);
+  color: #dff6ff;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  line-height: 1;
+  padding: 0.15rem 0.4rem;
+  cursor: pointer;
+}
+
+.rating-verify[data-verified="true"] {
+  border-color: rgba(99, 219, 190, 0.7);
+  background: rgba(99, 219, 190, 0.2);
+  color: #eafff7;
+}
+
+.rating-verify:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .rating-editor {
   width: 220px;
 }

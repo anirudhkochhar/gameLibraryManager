@@ -212,6 +212,14 @@ const applyRating = (element, rating, matchTitle, matchElement, sourceCsv) => {
   }
 };
 
+const applyRatingVerifyState = (element, game) => {
+  if (!element) return;
+  const hasMatch = Boolean(game.rating_match_title);
+  element.dataset.verified = game.rating_verified ? "true" : "false";
+  element.disabled = !hasMatch;
+  element.hidden = !hasMatch;
+};
+
 const applyStatusLabel = (element, status) => {
   if (!element) return;
   const label = formatStatusLabel(status);
@@ -517,6 +525,7 @@ const ensureDetailNode = () => {
     close: node.querySelector("[data-detail-close]"),
     rating: node.querySelector("[data-detail-rating]"),
     ratingMatch: node.querySelector("[data-detail-rating-match]"),
+    ratingVerify: node.querySelector("[data-detail-rating-verify]"),
     ratingEditor: node.querySelector("[data-rating-editor]"),
     ratingInput: node.querySelector("[data-rating-input]"),
     ratingSuggestions: node.querySelector("[data-rating-suggestions]"),
@@ -560,6 +569,18 @@ const ensureDetailNode = () => {
   refs.ratingMatch?.addEventListener("click", () =>
     openRatingEditor(state.selection)
   );
+  refs.ratingVerify?.addEventListener("click", () => {
+    if (!state.selection) return;
+    const updated = updateGameMetadata(
+      state.selection.__id,
+      { rating_verified: true },
+      { silent: true }
+    );
+    if (updated) {
+      openDetail(updated, { preserveSelection: true });
+    }
+    showStatus("Rating match accepted.");
+  });
   refs.ratingInput?.addEventListener("input", (event) => {
     requestRatingSuggestions(event.target.value);
   });
@@ -1039,6 +1060,7 @@ const openDetail = (
   refs.description.textContent = game.description;
   refs.cover.src = resolveImageUrl(game.cover_url);
   refs.cover.alt = `${game.title} cover art`;
+  applyRatingVerifyState(refs.ratingVerify, game);
   if (refs.statusControl) {
     refs.statusControl.value = sanitizeStatus(game.status);
   }
@@ -1103,6 +1125,10 @@ const createCard = (game) => {
       card.querySelector(".row-meta .rating-match"),
       game.rating_source_csv
     );
+    applyRatingVerifyState(
+      card.querySelector(".row-meta [data-rating-verify]"),
+      game
+    );
     applyStatusLabel(card.querySelector(".row-meta .status-pill"), game.status);
     renderGenreTags(
       card.querySelector(".info .genre-tags"),
@@ -1127,6 +1153,10 @@ const createCard = (game) => {
       card.querySelector(".card-meta .rating-match"),
       game.rating_source_csv
     );
+    applyRatingVerifyState(
+      card.querySelector(".card-meta [data-rating-verify]"),
+      game
+    );
     renderGenreTags(card.querySelector(".genre-tags"), game.genres, { limit: 3 });
   }
 
@@ -1141,6 +1171,22 @@ const createCard = (game) => {
     selectBtn.addEventListener("click", (event) => {
       event.stopPropagation();
       toggleGameSelection(game.__id, card);
+    });
+  }
+
+  const verifyBtn = card.querySelector("[data-rating-verify]");
+  if (verifyBtn) {
+    verifyBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const updated = updateGameMetadata(
+        game.__id,
+        { rating_verified: true },
+        { silent: true }
+      );
+      if (updated) {
+        openDetail(updated, { preserveSelection: true });
+      }
+      showStatus("Rating match accepted.");
     });
   }
 
