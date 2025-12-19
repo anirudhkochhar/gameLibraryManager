@@ -33,6 +33,7 @@ const elements = {
   selectionApplyButton: document.getElementById("selection-apply"),
   selectionClearButton: document.getElementById("selection-clear"),
   cacheClearButton: document.getElementById("cache-clear"),
+  ratingRefreshButton: document.getElementById("rating-refresh"),
   confirmDialog: document.getElementById("confirm-dialog"),
   confirmCancelButtons: document.querySelectorAll("[data-confirm-cancel]"),
   confirmConfirmButton: document.querySelector("[data-confirm-confirm]"),
@@ -160,6 +161,7 @@ let pendingDeleteId = null;
 let pendingRefineId = null;
 let pendingRefineSelection = null;
 let pendingRefineMatches = [];
+let isRefreshingRatings = false;
 let ratingSearchToken = 0;
 let ratingSearchTimeout = null;
 
@@ -1025,6 +1027,68 @@ const fetchRatingSuggestions = async (query) => {
   }
 };
 
+const lookupRatingForTitle = async (title) => {
+  const response = await fetch("/api/ratings/lookup", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title }),
+  });
+  if (!response.ok) {
+    throw new Error(await parseApiError(response));
+  }
+  return response.json();
+};
+
+const refreshMissingRatings = async () => {
+  if (isRefreshingRatings) return;
+  const targets = state.games.filter((game) => {
+    if (game.rating_verified || game.rating_manual) {
+      return false;
+    }
+    if (game.rating == null || !Number.isFinite(Number(game.rating))) {
+      return true;
+    }
+    return false;
+  });
+  if (!targets.length) {
+    showStatus("No N/A ratings to refresh.");
+    return;
+  }
+  isRefreshingRatings = true;
+  showStatus(`Refreshing ${targets.length} N/A rating(s)…`);
+  let updatedCount = 0;
+  for (const game of targets) {
+    try {
+      const data = await lookupRatingForTitle(game.title);
+      if (data.rating == null || !Number.isFinite(Number(data.rating))) {
+        continue;
+      }
+      const updated = updateGameMetadata(
+        game.__id,
+        {
+          rating: data.rating,
+          rating_match_title: data.rating_match_title ?? null,
+          rating_source_csv: data.rating_source_csv ?? null,
+          rating_verified: false,
+          rating_manual: false,
+        },
+        { silent: true }
+      );
+      if (updated) {
+        updatedCount += 1;
+      }
+    } catch (error) {
+      console.warn("Failed to refresh rating for", game.title, error);
+    }
+  }
+  isRefreshingRatings = false;
+  showStatus(
+    updatedCount
+      ? `Refreshed ${updatedCount} rating(s).`
+      : "No ratings were updated."
+  );
+};
+
 const requestRatingSuggestions = (query) => {
   const trimmed = (query || "").trim();
   if (!trimmed) {
@@ -1826,6 +1890,9 @@ elements.profileSaveButton?.addEventListener("click", () => {
     return;
   }
   saveProfile(path).catch(() => {});
+});
+elements.ratingRefreshButton?.addEventListener("click", () => {
+  refreshMissingRatings();
 });
 
 elements.profileDeleteButton?.addEventListener("click", async () => {

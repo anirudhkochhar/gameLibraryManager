@@ -542,6 +542,11 @@ class MetadataProvider:
         match_title = None if normalize_key(matched_title) == normalized else matched_title
         return score, match_title, source_csv
 
+    def lookup_critic_rating(
+        self, title: str
+    ) -> tuple[Optional[float], Optional[str], Optional[str]]:
+        return self._lookup_critic_rating(title)
+
     def search_critic_ratings(
         self, query: str, limit: int = 8
     ) -> list[Dict[str, object]]:

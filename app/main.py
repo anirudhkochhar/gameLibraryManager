@@ -194,6 +194,16 @@ class RatingSuggestionCollection(BaseModel):
     suggestions: list[RatingSuggestion]
 
 
+class RatingLookupRequest(BaseModel):
+    title: str
+
+
+class RatingLookupResponse(BaseModel):
+    rating: Optional[float] = None
+    rating_match_title: Optional[str] = None
+    rating_source_csv: Optional[str] = None
+
+
 @api_router.post("/games/search", response_model=GameSuggestionCollection)
 async def search_games(payload: ManualGameRequest) -> GameSuggestionCollection:
     title = payload.title.strip()
@@ -222,6 +232,21 @@ async def search_ratings(payload: RatingSearchRequest) -> RatingSuggestionCollec
     )
     return RatingSuggestionCollection(
         suggestions=[RatingSuggestion(**item) for item in suggestions]
+    )
+
+
+@api_router.post("/ratings/lookup", response_model=RatingLookupResponse)
+async def lookup_rating(payload: RatingLookupRequest) -> RatingLookupResponse:
+    title = payload.title.strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="Title is required.")
+    rating, match_title, source_csv = await run_in_threadpool(
+        metadata_provider.lookup_critic_rating, title
+    )
+    return RatingLookupResponse(
+        rating=rating,
+        rating_match_title=match_title,
+        rating_source_csv=source_csv,
     )
 
 
