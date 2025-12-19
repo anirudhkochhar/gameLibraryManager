@@ -412,8 +412,20 @@
           <span>Search for a better match</span>
           <input id="search-input-field" type="text" />
         </label>
+        <label>
+          <span>Match by IGDB ID</span>
+          <input
+            id="search-id-field"
+            type="text"
+            inputmode="numeric"
+            placeholder="e.g. 1020"
+          />
+        </label>
         <button type="button" id="search-fetch" class="secondary">
           Fetch matches
+        </button>
+        <button type="button" id="search-apply-id" class="secondary">
+          Apply IGDB ID
         </button>
         <div id="search-results" class="search-results"></div>
         <div class="confirm-actions">

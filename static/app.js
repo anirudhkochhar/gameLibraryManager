@@ -39,7 +39,9 @@ const elements = {
   confirmConfirmButton: document.querySelector("[data-confirm-confirm]"),
   searchDialog: document.getElementById("search-dialog"),
   searchInputField: document.getElementById("search-input-field"),
+  searchIdField: document.getElementById("search-id-field"),
   searchFetchButton: document.getElementById("search-fetch"),
+  searchApplyIdButton: document.getElementById("search-apply-id"),
   searchCancelButtons: document.querySelectorAll("[data-search-cancel]"),
   searchConfirmButton: document.querySelector("[data-search-confirm]"),
   searchResults: document.getElementById("search-results"),
@@ -780,6 +782,9 @@ const cancelRefineDialog = () => {
   if (elements.searchResults) {
     elements.searchResults.innerHTML = "";
   }
+  if (elements.searchIdField) {
+    elements.searchIdField.value = "";
+  }
   elements.searchConfirmButton?.setAttribute("disabled", "true");
 };
 
@@ -894,6 +899,57 @@ const confirmRefineDialog = async () => {
 	  showStatus(`${serialized.title} updated.`);
 	  autoSaveProfile();
 	}
+  } catch (error) {
+    showStatus(error.message, "error");
+  } finally {
+    cancelRefineDialog();
+  }
+};
+
+const applyRefineById = async () => {
+  if (!pendingRefineId) return;
+  const existing = state.games.find((game) => game.__id === pendingRefineId);
+  if (!existing) {
+    cancelRefineDialog();
+    return;
+  }
+  const raw = elements.searchIdField?.value.trim() || "";
+  const recordId = Number(raw);
+  if (!Number.isInteger(recordId) || recordId <= 0) {
+    showStatus("Enter a valid IGDB numeric ID.", "error");
+    return;
+  }
+  showStatus("Refreshing metadata…");
+  try {
+    const response = await fetch("/api/games/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: existing.title,
+        platform: existing.platform,
+        source: existing.source,
+        record_id: recordId,
+      }),
+    });
+    if (!response.ok) {
+      throw new Error(await parseApiError(response));
+    }
+    const updatedGame = await response.json();
+    const [serialized] = serializeGames([updatedGame]);
+    serialized.__id = existing.__id;
+    const index = state.games.findIndex((game) => game.__id === existing.__id);
+    if (index !== -1) {
+      state.games[index] = serialized;
+      state.games = [...state.games];
+      state.selection = serialized;
+      updateStoreFilterOptions();
+      updateGenreFilterOptions();
+      applyFilter();
+      persistGameCache();
+      openDetail(serialized, { preserveSelection: true });
+      showStatus(`${serialized.title} updated.`);
+      autoSaveProfile();
+    }
   } catch (error) {
     showStatus(error.message, "error");
   } finally {
@@ -1967,6 +2023,7 @@ elements.searchCancelButtons?.forEach((button) => {
 });
 elements.searchConfirmButton?.addEventListener("click", confirmRefineDialog);
 elements.searchFetchButton?.addEventListener("click", fetchRefineMatches);
+elements.searchApplyIdButton?.addEventListener("click", applyRefineById);
 elements.cacheClearButton?.addEventListener("click", () => {
   localStorage.removeItem(CACHE_STORAGE_KEY);
   showStatus("Browser cache cleared.");
