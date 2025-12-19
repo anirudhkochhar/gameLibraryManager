@@ -715,12 +715,6 @@ body.lightbox-open {
   color: #ffdada;
 }
 
-.rating-verify[data-verified="true"] {
-  border-color: rgba(99, 219, 190, 0.7);
-  background: rgba(99, 219, 190, 0.2);
-  color: #eafff7;
-}
-
 .rating-verify:disabled {
   opacity: 0.4;
   cursor: not-allowed;

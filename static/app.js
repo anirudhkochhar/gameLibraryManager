@@ -215,9 +215,10 @@ const applyRating = (element, rating, matchTitle, matchElement, sourceCsv) => {
 const applyRatingVerifyState = (element, game) => {
   if (!element) return;
   const hasMatch = Boolean(game.rating_match_title);
-  element.dataset.verified = game.rating_verified ? "true" : "false";
-  element.disabled = !hasMatch;
-  element.hidden = !hasMatch;
+  const isVerified = Boolean(game.rating_verified);
+  element.dataset.verified = isVerified ? "true" : "false";
+  element.disabled = !hasMatch || isVerified;
+  element.hidden = !hasMatch || isVerified;
 };
 
 const applyRatingClearState = (element, game) => {
@@ -910,7 +911,7 @@ const applyRatingSuggestion = (match) => {
       rating: match.score,
       rating_match_title: matchTitle,
       rating_source_csv: match.source_csv || null,
-      rating_verified: true,
+      rating_verified: false,
       rating_manual: false,
     },
     { silent: true }
