@@ -192,13 +192,23 @@ const formatStatusLabel = (value) => {
   return STATUS_LABEL_LOOKUP[status] || STATUS_LABEL_LOOKUP[DEFAULT_STATUS];
 };
 
-const applyRating = (element, rating, matchTitle, matchElement, sourceCsv) => {
+const applyRating = (
+  element,
+  rating,
+  matchTitle,
+  matchElement,
+  sourceCsv,
+  ratingVerified
+) => {
   if (!element) return;
   const formatted = formatRating(rating);
   element.dataset.hidden = "false";
   element.textContent = formatted;
   if (matchElement) {
-    if (matchTitle) {
+    if (ratingVerified) {
+      matchElement.dataset.hidden = "true";
+      matchElement.textContent = "";
+    } else if (matchTitle) {
       matchElement.dataset.hidden = "false";
       const sourceLabel = sourceCsv ? ` (${sourceCsv})` : "";
       matchElement.textContent = `Matched: ${matchTitle}${sourceLabel}`;
@@ -1108,7 +1118,8 @@ const openDetail = (
     game.rating,
     game.rating_match_title,
     refs.ratingMatch,
-    game.rating_source_csv
+    game.rating_source_csv,
+    game.rating_verified
   );
   hideLightbox();
 
@@ -1155,7 +1166,8 @@ const createCard = (game) => {
       game.rating,
       game.rating_match_title,
       card.querySelector(".row-meta .rating-match"),
-      game.rating_source_csv
+      game.rating_source_csv,
+      game.rating_verified
     );
     applyRatingVerifyState(
       card.querySelector(".row-meta [data-rating-verify]"),
@@ -1187,7 +1199,8 @@ const createCard = (game) => {
       game.rating,
       game.rating_match_title,
       card.querySelector(".card-meta .rating-match"),
-      game.rating_source_csv
+      game.rating_source_csv,
+      game.rating_verified
     );
     applyRatingVerifyState(
       card.querySelector(".card-meta [data-rating-verify]"),
