@@ -193,6 +193,7 @@ class IgdbClient:
     ) -> list[Dict]:
         query_value = strip_keywords(title) if strip_input else title
         query_title = query_value.replace('"', " ")
+        logger.debug("IGDB request: search_games title='%s' limit=%s", title, limit)
         query = (
             f'search "{query_title}";'
             " fields name,summary,platforms.name,platforms.abbreviation,"
@@ -212,6 +213,7 @@ class IgdbClient:
         return results
 
     def get_game_by_id(self, record_id: int) -> Optional[Dict]:
+        logger.debug("IGDB request: get_game_by_id id=%s", record_id)
         query = (
             f"where id = {record_id};"
             " fields name,summary,platforms.name,platforms.abbreviation,"
@@ -459,6 +461,13 @@ class MetadataProvider:
             return cached
 
         if self.primary_provider:
+            logger.debug(
+                "IGDB lookup allowed for title='%s' platform='%s' source='%s' record_id=%s",
+                title,
+                platform,
+                source,
+                record_id,
+            )
             try:
                 game = self.primary_provider.build_game(
                     title, platform, source, record_id=record_id

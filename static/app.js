@@ -1645,9 +1645,18 @@ const saveProfile = async (path, { silent = false } = {}) => {
   }
 };
 
-const loadProfile = async (path) => {
+const cachedProfileMatches = (path) => {
+  if (!path) return false;
+  return state.profilePath === path && state.games.length > 0;
+};
+
+const loadProfile = async (path, { preferCache = true } = {}) => {
   if (!path) {
     showStatus("Enter a profile directory.", "error");
+    return;
+  }
+  if (preferCache && cachedProfileMatches(path)) {
+    showStatus("Loaded cached profile. Refresh to sync from disk.");
     return;
   }
   showStatus("Loading profile…");
@@ -1917,7 +1926,6 @@ const bootstrapProfile = () => {
   }
   if (stored) {
     persistProfilePath(stored);
-    loadProfile(stored);
   }
 
   try {
@@ -1931,6 +1939,9 @@ const bootstrapProfile = () => {
     }
   } catch (error) {
     console.warn("Failed to restore cache", error);
+  }
+  if (stored && !state.games.length) {
+    showStatus("Profile path loaded. Click Load profile to fetch data.");
   }
 };
 
@@ -1951,6 +1962,9 @@ elements.searchFetchButton?.addEventListener("click", fetchRefineMatches);
 elements.cacheClearButton?.addEventListener("click", () => {
   localStorage.removeItem(CACHE_STORAGE_KEY);
   showStatus("Browser cache cleared.");
+  if (state.profilePath) {
+    loadProfile(state.profilePath, { preferCache: false });
+  }
 });
 elements.searchCancelButtons?.forEach((button) => {
   button.addEventListener("click", cancelRefineDialog);
