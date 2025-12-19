@@ -520,7 +520,7 @@ const updateGameMetadata = (
   updateGenreFilterOptions();
   const shouldSilence = silent || Boolean(message);
   if (!deferFilter) {
-    applyFilter({ silentStatus: shouldSilence });
+    applyFilter({ silentStatus: shouldSilence, preserveScroll: true });
   }
   persistGameCache();
   autoSaveProfile();
@@ -1488,13 +1488,16 @@ const buildFilterMessage = (
   return `Showing ${count} games (${activeFilters.join(" · ")}).`;
 };
 
-const applyFilter = ({ silentStatus = false } = {}) => {
+const applyFilter = ({ silentStatus = false, preserveScroll = false } = {}) => {
   const queryRaw = elements.searchInput.value.trim();
   const query = queryRaw.toLowerCase();
   const storeFilter = (state.storeFilter || "").toLowerCase();
   const statusFilter = state.statusFilter || "";
   const genreFilter = state.genreFilter || "";
   const metadataFilter = state.metadataFilter || "";
+
+  const previousScroll =
+    preserveScroll && typeof window !== "undefined" ? window.scrollY : null;
 
   state.filtered = state.games.filter((game) => {
     const haystack = `${game.title} ${game.platform ?? ""} ${
@@ -1540,6 +1543,11 @@ const applyFilter = ({ silentStatus = false } = {}) => {
 
   state.filtered = sortGames(state.filtered);
   renderGrid(state.filtered);
+  if (previousScroll != null) {
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: previousScroll, behavior: "auto" });
+    });
+  }
 
   const message = buildFilterMessage(
     state.filtered.length,
