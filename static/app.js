@@ -159,6 +159,7 @@ let renderGeneration = 0;
 let pendingDetailId = null;
 const PROFILE_STORAGE_KEY = "glProfilePath";
 const CACHE_STORAGE_KEY = "glCachedGames";
+const UI_STATE_KEY = "glUiState";
 let pendingDeleteId = null;
 let pendingRefineId = null;
 let pendingRefineSelection = null;
@@ -333,6 +334,73 @@ const persistGameCache = () => {
   }
 };
 
+const persistUiState = () => {
+  try {
+    const payload = {
+      viewMode: state.viewMode,
+      sortMode: state.sortMode,
+      storeFilter: state.storeFilter,
+      statusFilter: state.statusFilter,
+      genreFilter: state.genreFilter,
+      metadataFilter: state.metadataFilter,
+      searchQuery: elements.searchInput?.value || "",
+    };
+    localStorage.setItem(UI_STATE_KEY, JSON.stringify(payload));
+  } catch (error) {
+    console.warn("Failed to persist UI state", error);
+  }
+};
+
+const restoreUiState = () => {
+  let stored = null;
+  try {
+    stored = localStorage.getItem(UI_STATE_KEY);
+  } catch {
+    stored = null;
+  }
+  if (!stored) return false;
+  try {
+    const parsed = JSON.parse(stored);
+    if (parsed.viewMode) {
+      state.viewMode = parsed.viewMode === "list" ? "list" : "grid";
+    }
+    if (parsed.sortMode) {
+      state.sortMode = parsed.sortMode;
+    }
+    state.storeFilter = parsed.storeFilter || "";
+    state.statusFilter = parsed.statusFilter || "";
+    state.genreFilter = parsed.genreFilter || "";
+    state.metadataFilter = parsed.metadataFilter || "";
+    if (elements.searchInput && parsed.searchQuery != null) {
+      elements.searchInput.value = parsed.searchQuery;
+    }
+    if (elements.sortSelect) {
+      elements.sortSelect.value =
+        state.sortMode === "score" || state.sortMode === "random"
+          ? state.sortMode
+          : "alphabetical";
+    }
+    if (elements.statusFilterSelect) {
+      elements.statusFilterSelect.value = state.statusFilter || "";
+    }
+    if (elements.genreFilterSelect) {
+      elements.genreFilterSelect.value = state.genreFilter || "";
+    }
+    if (elements.metadataFilterSelect) {
+      elements.metadataFilterSelect.value = state.metadataFilter || "";
+    }
+    if (elements.viewButtons?.length) {
+      elements.viewButtons.forEach((btn) => {
+        btn.classList.toggle("active", btn.dataset.viewMode === state.viewMode);
+      });
+    }
+    return true;
+  } catch (error) {
+    console.warn("Failed to restore UI state", error);
+    return false;
+  }
+};
+
 const updateStoreFilterOptions = () => {
   const select = elements.storeFilterSelect;
   if (!select) return;
@@ -367,6 +435,7 @@ const updateStoreFilterOptions = () => {
   }
   select.disabled = stores.length === 0;
   select.value = state.storeFilter || "";
+  persistUiState();
 };
 
 const updateGenreFilterOptions = () => {
@@ -423,6 +492,7 @@ const updateGenreFilterOptions = () => {
   }
   select.disabled = genres.length === 0 && !hasUnknown;
   select.value = state.genreFilter || "";
+  persistUiState();
 };
 
 const updateSelectionUI = () => {
@@ -1619,7 +1689,11 @@ const applyFilter = ({ silentStatus = false, preserveScroll = false } = {}) => {
   return message;
 };
 
-const ingestGames = (games, { skipAutoSave = false, append = false } = {}) => {
+const ingestGames = (
+  games,
+  { skipAutoSave = false, append = false, restoreUi = false } = {}
+) => {
+  const restored = restoreUi ? restoreUiState() : false;
   const serialized = serializeGames(games);
   if (append && state.games.length) {
     state.games = [...state.games, ...serialized];
@@ -1628,7 +1702,9 @@ const ingestGames = (games, { skipAutoSave = false, append = false } = {}) => {
     state.games = serialized;
   }
   state.selection = null;
-  elements.searchInput.value = "";
+  if (!restoreUi || !restored) {
+    elements.searchInput.value = "";
+  }
   updateStoreFilterOptions();
   updateGenreFilterOptions();
   applyFilter();
@@ -1735,7 +1811,7 @@ const loadProfile = async (path, { preferCache = true } = {}) => {
     }
     const data = await response.json();
     persistProfilePath(path);
-    ingestGames(data.games ?? [], { skipAutoSave: true });
+    ingestGames(data.games ?? [], { skipAutoSave: true, restoreUi: true });
     showStatus(`Profile loaded from ${path}.`);
   } catch (error) {
     showStatus(error.message, "error");
@@ -1820,6 +1896,7 @@ const setViewMode = (mode) => {
   elements.viewButtons?.forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.viewMode === mode);
   });
+  persistUiState();
   const source = state.filtered.length ? state.filtered : state.games;
   if (!source.length) {
     return;
@@ -1908,6 +1985,7 @@ elements.searchInput?.addEventListener("input", () => {
   if (!state.games.length) {
     return;
   }
+  persistUiState();
   applyFilter();
 });
 
@@ -1921,24 +1999,29 @@ elements.sortSelect?.addEventListener("change", (event) => {
   } else {
     state.sortMode = "alphabetical";
   }
+  persistUiState();
   if (state.games.length) {
     applyFilter();
   }
 });
 elements.storeFilterSelect?.addEventListener("change", (event) => {
   state.storeFilter = event.target.value || "";
+  persistUiState();
   applyFilter();
 });
 elements.statusFilterSelect?.addEventListener("change", (event) => {
   state.statusFilter = event.target.value || "";
+  persistUiState();
   applyFilter();
 });
 elements.genreFilterSelect?.addEventListener("change", (event) => {
   state.genreFilter = event.target.value || "";
+  persistUiState();
   applyFilter();
 });
 elements.metadataFilterSelect?.addEventListener("change", (event) => {
   state.metadataFilter = event.target.value || "";
+  persistUiState();
   applyFilter();
 });
 elements.selectionApplyButton?.addEventListener("click", applyBulkStatus);
@@ -1982,6 +2065,7 @@ elements.profileDeleteButton?.addEventListener("click", async () => {
 });
 
 const bootstrapProfile = () => {
+  restoreUiState();
   let stored = null;
   try {
     stored = localStorage.getItem(PROFILE_STORAGE_KEY);
@@ -1997,7 +2081,7 @@ const bootstrapProfile = () => {
     if (cached) {
       const parsed = JSON.parse(cached);
       if (Array.isArray(parsed) && parsed.length) {
-        ingestGames(parsed, { skipAutoSave: true });
+        ingestGames(parsed, { skipAutoSave: true, restoreUi: true });
         showStatus("Loaded cached library. Profile will refresh when available.");
       }
     }
